@@ -1,0 +1,104 @@
+plugins {
+    id 'fml-loom' version '0.1'
+    id 'maven-publish'
+}
+
+version = project.mod_version
+group = project.maven_group
+
+base {
+    archivesName = "[服务端模组动物刷新]" + project.archives_base_name
+}
+
+repositories {
+    maven {
+        name = "ModdedMITE"
+        url = uri("https://maven.limingzxc.top/repository/maven-public/")
+    }
+}
+
+configurations {
+    fml
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+
+    fml "com.github.MinecraftIsTooEasy:FishModLoader:3.4.2"
+    implementation "com.github.MinecraftIsTooEasy:FishModLoader:3.4.2"
+
+    implementation "com.github.MinecraftIsTooEasy:ManyLib:2.3.0"
+    implementation "com.github.MinecraftIsTooEasy:ModMenu:10.1.1"
+    implementation "com.github.MinecraftIsTooEasy:RustedIronCore:1.5.0"
+
+    implementation "com.github.MinecraftIsTooEasy:Gson:2.10.1"
+    implementation "com.github.MinecraftIsTooEasy:FastUtil:8.5.12"
+    implementation "com.github.MinecraftIsTooEasy:EMI:1.1.25"
+
+    implementation "com.github.MinecraftIsTooEasy:jflac-codec:1.5.3"
+    implementation "com.github.MinecraftIsTooEasy:jlayer:1.0.1.4"
+    implementation "com.github.MinecraftIsTooEasy:mp3spi:1.9.5.4"
+    implementation "com.github.MinecraftIsTooEasy:tritonus-share:0.3.7.4"
+    implementation "com.github.MinecraftIsTooEasy:commons-codec:1.15"
+    implementation "com.github.MinecraftIsTooEasy:commons-lang3:3.12.0"
+}
+
+def fmlResolvedFile = configurations.fml.files.iterator().next()
+
+loom {
+//    accessWidenerPath = file("src/main/resources/animalrefresh.accessWidener")
+    mergedMinecraftJar()
+
+    mods {
+        "AnimalRefresh" {
+            sourceSet sourceSets.main
+        }
+    }
+}
+
+loom.setFML(fmlResolvedFile)
+dependencies.add("mappings", loom.fmlMCPMappings())
+
+processResources {
+    inputs.property "version", project.version
+
+    filesMatching("fml.mod.json") {
+        expand "version": project.version
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    it.options.release = 17
+}
+
+java {
+    withSourcesJar()
+
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+jar {
+}
+
+tasks.named('runClient', JavaExec).configure { exec ->
+    def user = project.hasProperty('username') ? project.username : 'Dev'
+    exec.setArgs(['--username', user, '--session', '0', '--width', '854', '--height', '480'])
+}
+
+// configure the maven publication
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+        }
+    }
+
+    repositories {
+        // Add repositories to publish to here.
+        // Notice: This block does NOT have the same function as the block in the top level.
+        // The repositories here will be used for publishing your artifact, not for
+        // retrieving dependencies.
+    }
+}

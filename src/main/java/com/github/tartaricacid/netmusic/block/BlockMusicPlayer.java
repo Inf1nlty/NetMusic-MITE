@@ -2,69 +2,84 @@ package com.github.tartaricacid.netmusic.block;
 
 import com.github.tartaricacid.netmusic.item.ItemMusicCD;
 import com.github.tartaricacid.netmusic.tileentity.TileEntityMusicPlayer;
-import net.minecraft.ChatFormatting;
-import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
-import net.minecraft.network.chat.Component;
-import net.minecraft.world.InteractionHand;
-import net.minecraft.world.InteractionResult;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.context.BlockPlaceContext;
-import net.minecraft.world.level.BlockGetter;
-import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.*;
-import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraft.world.level.block.entity.BlockEntityTicker;
-import net.minecraft.world.level.block.entity.BlockEntityType;
-import net.minecraft.world.level.block.state.BlockBehaviour;
-import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.block.state.StateDefinition;
-import net.minecraft.world.level.block.state.properties.BooleanProperty;
-import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.shapes.CollisionContext;
-import net.minecraft.world.phys.shapes.VoxelShape;
+import net.minecraft.BlockBreakInfo;
+import net.minecraft.BlockConstants;
+import net.minecraft.BlockDirectionalWithTileEntity;
+import net.minecraft.Container;
+import net.minecraft.Entity;
+import net.minecraft.EntityPlayer;
+import net.minecraft.EnumDirection;
+import net.minecraft.EnumFace;
+import net.minecraft.IBlockAccess;
+import net.minecraft.ItemStack;
+import net.minecraft.Material;
+import net.minecraft.StringHelper;
+import net.minecraft.TileEntity;
+import net.minecraft.World;
+import net.xiaoyu233.fml.reload.utils.IdUtil;
 
-import javax.annotation.Nullable;
-
-public class BlockMusicPlayer extends HorizontalDirectionalBlock implements EntityBlock {
-    protected static final VoxelShape BLOCK_AABB = Block.box(2, 0, 2, 14, 6, 14);
-    public static final BooleanProperty CYCLE_DISABLE = BooleanProperty.create("cycle_disable");
+public class BlockMusicPlayer extends BlockDirectionalWithTileEntity {
+    public static final int CYCLE_DISABLE_MASK = 4;
 
     public BlockMusicPlayer() {
-        super(BlockBehaviour.Properties.of().sound(SoundType.WOOD).strength(0.5f).noOcclusion());
-        this.registerDefaultState(this.stateDefinition.any().setValue(FACING, Direction.SOUTH));
+        this(IdUtil.getNextBlockID());
     }
 
-    @Nullable
-    @Override
-    public BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
-        return new TileEntityMusicPlayer(pos, state);
-    }
-
-    @Override
-    protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
-        builder.add(FACING, CYCLE_DISABLE);
-    }
-
-    @Nullable
-    @Override
-    public BlockState getStateForPlacement(BlockPlaceContext context) {
-        Direction direction = context.getHorizontalDirection().getOpposite();
-        return this.defaultBlockState().setValue(FACING, direction).setValue(CYCLE_DISABLE, true);
+    public BlockMusicPlayer(int id) {
+        super(id, Material.wood, new BlockConstants());
+        this.setHardness(0.5F);
+        this.setStepSound(soundWoodFootstep);
+        this.setBlockBoundsForAllThreads(0.125, 0.0, 0.125, 0.875, 0.375, 0.875);
     }
 
     @Override
-    public boolean hasAnalogOutputSignal(BlockState blockState) {
+    public TileEntity createNewTileEntity(World world) {
+        return new TileEntityMusicPlayer();
+    }
+
+    @Override
+    public EnumDirection getDirectionFacing(int metadata) {
+        return this.getDirectionFacingStandard4(metadata & 3);
+    }
+
+    @Override
+    public int getMetadataForDirectionFacing(int metadata, EnumDirection direction) {
+        int facingBits;
+        if (direction.isSouth()) {
+            facingBits = 0;
+        } else if (direction.isWest()) {
+            facingBits = 1;
+        } else if (direction.isNorth()) {
+            facingBits = 2;
+        } else if (direction.isEast()) {
+            facingBits = 3;
+        } else {
+            facingBits = metadata & 3;
+        }
+        return (metadata & CYCLE_DISABLE_MASK) | facingBits;
+    }
+
+    @Override
+    public int getMetadataForPlacement(World world, int x, int y, int z, ItemStack itemStack, Entity entity, EnumFace face, float offsetX, float offsetY, float offsetZ) {
+        int metadata = super.getMetadataForPlacement(world, x, y, z, itemStack, entity, face, offsetX, offsetY, offsetZ);
+        return metadata | CYCLE_DISABLE_MASK;
+    }
+
+    public static boolean isCycleDisabled(int metadata) {
+        return (metadata & CYCLE_DISABLE_MASK) != 0;
+    }
+
+    @Override
+    public boolean hasComparatorInputOverride() {
         return true;
     }
 
-    public int getAnalogOutputSignal(BlockState state, Level level, BlockPos blockPos) {
-        BlockEntity blockEntity = level.getBlockEntity(blockPos);
-        if (blockEntity instanceof TileEntityMusicPlayer te) {
-            ItemStack stackInSlot = te.getItems().get(0);
-            if (!stackInSlot.isEmpty()) {
-                if (te.isPlay()) {
+    @Override
+    public int getComparatorInputOverride(World world, int x, int y, int z, int side) {
+        TileEntity tileEntity = world.getBlockTileEntity(x, y, z);
+        if (tileEntity instanceof TileEntityMusicPlayer musicPlayer) {
+            if (musicPlayer.getItem(0) != null) {
+                if (musicPlayer.isPlay()) {
                     return 15;
                 }
                 return 7;
@@ -74,112 +89,116 @@ public class BlockMusicPlayer extends HorizontalDirectionalBlock implements Enti
     }
 
     @Override
-    public void neighborChanged(BlockState state, Level level, BlockPos blockPos, Block block, BlockPos fromPos, boolean isMoving) {
-        playerMusic(level, blockPos, level.hasNeighborSignal(blockPos));
+    public void onNeighborBlockChange(World world, int x, int y, int z, int neighborBlockId) {
+        playMusic(world, x, y, z, world.isBlockIndirectlyGettingPowered(x, y, z));
     }
 
-    private static void playerMusic(Level level, BlockPos blockPos, boolean signal) {
-        BlockEntity blockEntity = level.getBlockEntity(blockPos);
-        if (blockEntity instanceof TileEntityMusicPlayer player) {
-            if (signal != player.hasSignal()) {
+    private static void playMusic(World world, int x, int y, int z, boolean signal) {
+        TileEntity tileEntity = world.getBlockTileEntity(x, y, z);
+        if (tileEntity instanceof TileEntityMusicPlayer musicPlayer) {
+            if (signal != musicPlayer.hasSignal()) {
                 if (signal) {
-                    if (player.isPlay()) {
-                        player.setPlay(false);
-                        player.setSignal(signal);
-                        player.setChanged();
+                    if (musicPlayer.isPlay()) {
+                        musicPlayer.setPlay(false);
+                        musicPlayer.setSignal(signal);
+                        musicPlayer.setChanged();
                         return;
                     }
-                    ItemStack stackInSlot = player.getItems().get(0);
-                    if (stackInSlot.isEmpty()) {
-                        player.setSignal(signal);
-                        player.setChanged();
+                    ItemStack stackInSlot = musicPlayer.getItem(0);
+                    if (stackInSlot == null) {
+                        musicPlayer.setSignal(signal);
+                        musicPlayer.setChanged();
                         return;
                     }
                     ItemMusicCD.SongInfo songInfo = ItemMusicCD.getSongInfo(stackInSlot);
                     if (songInfo != null) {
-                        player.setPlayToClient(songInfo);
+                        musicPlayer.setPlayToClient(songInfo);
                     }
                 }
-                player.setSignal(signal);
-                player.setChanged();
+                musicPlayer.setSignal(signal);
+                musicPlayer.setChanged();
             }
         }
     }
 
     @Override
-    public InteractionResult use(BlockState state, Level worldIn, BlockPos pos, Player playerIn, InteractionHand hand, BlockHitResult hit) {
-        if (hand == InteractionHand.OFF_HAND) {
-            return InteractionResult.PASS;
-        }
-
-        BlockEntity te = worldIn.getBlockEntity(pos);
-        if (!(te instanceof TileEntityMusicPlayer musicPlayer)) {
-            return InteractionResult.PASS;
+    public boolean onBlockActivated(World world, int x, int y, int z, EntityPlayer player, EnumFace face, float offsetX, float offsetY, float offsetZ) {
+        TileEntity tileEntity = world.getBlockTileEntity(x, y, z);
+        if (!(tileEntity instanceof TileEntityMusicPlayer musicPlayer)) {
+            return false;
         }
 
         ItemStack stack = musicPlayer.getItem(0);
-        if (!stack.isEmpty()) {
+        if (stack != null) {
             if (musicPlayer.isPlay()) {
                 musicPlayer.setPlay(false);
                 musicPlayer.setCurrentTime(0);
             }
-            ItemStack itemStack = musicPlayer.removeItem(0, 1);
-            popResource(worldIn, pos, itemStack);
-            return InteractionResult.SUCCESS;
+            ItemStack removed = musicPlayer.removeItem(0, 1);
+            if (removed != null && !player.inventory.addItemStackToInventory(removed)) {
+                player.dropPlayerItem(removed);
+            }
+            musicPlayer.setChanged();
+            return true;
         }
 
-        ItemStack heldStack = playerIn.getMainHandItem();
+        ItemStack heldStack = player.getHeldItemStack();
         ItemMusicCD.SongInfo info = ItemMusicCD.getSongInfo(heldStack);
         if (info == null) {
-            return InteractionResult.PASS;
+            return false;
         }
         if (info.vip) {
-            if (worldIn.isClientSide) {
-                playerIn.sendSystemMessage(Component.translatable("message.netmusic.music_player.need_vip").withStyle(ChatFormatting.RED));
-            }
-            return InteractionResult.FAIL;
+            player.addChatMessage("message.netmusic.music_player.need_vip");
+            return true;
         }
 
-        musicPlayer.setItem(0, heldStack.copyWithCount(1));
-        if (!playerIn.isCreative()) {
-            stack.shrink(1);
+        ItemStack one = heldStack.copy();
+        one.stackSize = 1;
+        musicPlayer.setItem(0, one);
+        if (!player.inCreativeMode()) {
+            heldStack.stackSize--;
+            if (heldStack.stackSize <= 0) {
+                player.inventory.setInventorySlotContents(player.inventory.currentItem, null);
+            }
         }
         musicPlayer.setPlayToClient(info);
         musicPlayer.setChanged();
-        return InteractionResult.SUCCESS;
+        return true;
     }
 
     @Override
-    public void onRemove(BlockState state, Level worldIn, BlockPos pos, BlockState newState, boolean isMoving) {
-        BlockEntity te = worldIn.getBlockEntity(pos);
-        if (te instanceof TileEntityMusicPlayer) {
-            TileEntityMusicPlayer musicPlayer = (TileEntityMusicPlayer) te;
+    public void breakBlock(World world, int x, int y, int z, int blockId, int metadata) {
+        TileEntity tileEntity = world.getBlockTileEntity(x, y, z);
+        if (tileEntity instanceof TileEntityMusicPlayer musicPlayer) {
             ItemStack stack = musicPlayer.getItem(0);
-            if (!stack.isEmpty()) {
-                Block.popResource(worldIn, pos, stack);
+            if (stack != null) {
+                this.dropBlockAsEntityItem(new BlockBreakInfo(world, x, y, z), stack);
             }
         }
-        super.onRemove(state, worldIn, pos, newState, isMoving);
-    }
-
-    @Nullable
-    @Override
-    public <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level level, BlockState blockState, BlockEntityType<T> entityType) {
-        return !level.isClientSide ? createTickerHelper(entityType, TileEntityMusicPlayer.TYPE, TileEntityMusicPlayer::tick) : null;
-    }
-
-    @Nullable
-    protected static <E extends BlockEntity, A extends BlockEntity> BlockEntityTicker<A> createTickerHelper(BlockEntityType<A> entityType, BlockEntityType<E> type, BlockEntityTicker<? super E> ticker) {
-        return type == entityType ? (BlockEntityTicker<A>) ticker : null;
+        super.breakBlock(world, x, y, z, blockId, metadata);
     }
 
     @Override
-    public VoxelShape getShape(BlockState state, BlockGetter worldIn, BlockPos pos, CollisionContext context) {
-        return BLOCK_AABB;
+    public void setBlockBoundsBasedOnStateAndNeighbors(IBlockAccess blockAccess, int x, int y, int z) {
+        this.setBlockBoundsForAllThreads(0.125, 0.0, 0.125, 0.875, 0.375, 0.875);
     }
 
     @Override
-    public RenderShape getRenderShape(BlockState state) {
-        return RenderShape.ENTITYBLOCK_ANIMATED;
+    public void setBlockBoundsForItemRender(int itemDamage) {
+        this.setBlockBoundsForAllThreads(0.125, 0.0, 0.125, 0.875, 0.375, 0.875);
+    }
+
+    @Override
+    public String getMetadataNotes() {
+        String[] array = new String[8];
+        for (int i = 0; i < array.length; ++i) {
+            array[i] = i + "=" + this.getDirectionFacing(i).getDescriptor(true) + ",cycle_disabled=" + isCycleDisabled(i);
+        }
+        return StringHelper.implode(array, ", ", true, false);
+    }
+
+    @Override
+    public boolean isValidMetadata(int metadata) {
+        return metadata >= 0 && metadata < 8;
     }
 }

@@ -1,75 +1,78 @@
 package com.github.tartaricacid.netmusic.block;
 
-import com.github.tartaricacid.netmusic.inventory.CDBurnerMenu;
-import net.minecraft.ChatFormatting;
-import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
-import net.minecraft.network.chat.Component;
-import net.minecraft.world.InteractionHand;
-import net.minecraft.world.InteractionResult;
-import net.minecraft.world.MenuProvider;
-import net.minecraft.world.SimpleMenuProvider;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.TooltipFlag;
-import net.minecraft.world.item.context.BlockPlaceContext;
-import net.minecraft.world.level.BlockGetter;
-import net.minecraft.world.level.Level;
-import net.minecraft.Block;
-import net.minecraft.world.level.block.HorizontalDirectionalBlock;
-import net.minecraft.world.level.block.SoundType;
-import net.minecraft.world.level.block.state.BlockBehaviour;
-import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.block.state.StateDefinition;
-import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.shapes.CollisionContext;
-import net.minecraft.world.phys.shapes.VoxelShape;
+import net.minecraft.*;
+import net.xiaoyu233.fml.reload.utils.IdUtil;
 
-import javax.annotation.Nullable;
-import java.util.List;
-
-public class BlockCDBurner extends HorizontalDirectionalBlock {
-    protected static final VoxelShape BLOCK_AABB = Block.box(0, 0, 0, 16, 8, 16);
+public class BlockCDBurner extends BlockDirectional {
 
     public BlockCDBurner() {
-        super(BlockBehaviour.Properties.of().sound(SoundType.WOOD).strength(0.5f).noOcclusion());
-        this.registerDefaultState(this.stateDefinition.any().setValue(FACING, Direction.NORTH));
+        this(IdUtil.getNextBlockID());
+    }
+
+    public BlockCDBurner(int id) {
+        super(id, Material.wood, new BlockConstants());
+        this.setHardness(0.5F);
+        this.setStepSound(soundWoodFootstep);
+        this.setBlockBoundsForAllThreads(0.0, 0.0, 0.0, 1.0, 0.5, 1.0);
     }
 
     @Override
-    protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
-        builder.add(FACING);
-    }
-
-    @Nullable
-    @Override
-    public BlockState getStateForPlacement(BlockPlaceContext context) {
-        Direction direction = context.getHorizontalDirection().getOpposite();
-        return this.defaultBlockState().setValue(FACING, direction);
+    public EnumDirection getDirectionFacing(int metadata) {
+        return this.getDirectionFacingStandard4(metadata);
     }
 
     @Override
-    public VoxelShape getShape(BlockState state, BlockGetter worldIn, BlockPos pos, CollisionContext context) {
-        return BLOCK_AABB;
-    }
-
-    @Override
-    public InteractionResult use(BlockState blockState, Level level, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hitResult) {
-        if (level.isClientSide) {
-            return InteractionResult.SUCCESS;
-        } else {
-            player.openMenu(blockState.getMenuProvider(level, pos));
-            return InteractionResult.CONSUME;
+    public int getMetadataForDirectionFacing(int metadata, EnumDirection direction) {
+        if (direction.isSouth()) {
+            return 0;
         }
+        if (direction.isWest()) {
+            return 1;
+        }
+        if (direction.isNorth()) {
+            return 2;
+        }
+        if (direction.isEast()) {
+            return 3;
+        }
+        return metadata;
     }
 
     @Override
-    public MenuProvider getMenuProvider(BlockState blockState, Level level, BlockPos blockPos) {
-        return new SimpleMenuProvider((id, inventory, player) -> new CDBurnerMenu(id, inventory), Component.literal("cd_burner"));
+    public boolean onBlockActivated(World world, int x, int y, int z, EntityPlayer player, EnumFace face, float offsetX, float offsetY, float offsetZ) {
+        if (player.onServer()) {
+            // Temporary compatibility bridge: keeps right-click interaction alive until custom Container migration is finished.
+            player.displayGUIWorkbench(x, y, z);
+        }
+        return true;
     }
 
     @Override
-    public void appendHoverText(ItemStack stack, @Nullable BlockGetter level, List<Component> tooltip, TooltipFlag flag) {
-        tooltip.add(Component.translatable("block.netmusic.cd_burner.desc").withStyle(ChatFormatting.GRAY));
+    public void setBlockBoundsBasedOnStateAndNeighbors(IBlockAccess blockAccess, int x, int y, int z) {
+        this.setBlockBoundsForAllThreads(0.0, 0.0, 0.0, 1.0, 0.5, 1.0);
+    }
+
+    @Override
+    public void setBlockBoundsForItemRender(int itemDamage) {
+        this.setBlockBoundsForAllThreads(0.0, 0.0, 0.0, 1.0, 0.5, 1.0);
+    }
+
+    @Override
+    public String getMetadataNotes() {
+        String[] array = new String[4];
+        for (int i = 0; i < array.length; ++i) {
+            array[i] = i + "=" + this.getDirectionFacing(i).getDescriptor(true);
+        }
+        return StringHelper.implode(array, ", ", true, false);
+    }
+
+    @Override
+    public boolean isValidMetadata(int metadata) {
+        return metadata >= 0 && metadata < 4;
+    }
+
+    @Override
+    public boolean isPortable(World world, EntityLivingBase entity_living_base, int x, int y, int z) {
+        return true;
     }
 }

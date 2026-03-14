@@ -1,36 +1,21 @@
 package com.github.tartaricacid.netmusic.tileentity;
 
 import com.github.tartaricacid.netmusic.api.lyric.LyricRecord;
-import com.github.tartaricacid.netmusic.init.InitBlocks;
-import com.github.tartaricacid.netmusic.inventory.MusicPlayerInv;
+import com.github.tartaricacid.netmusic.block.BlockMusicPlayer;
 import com.github.tartaricacid.netmusic.item.ItemMusicCD;
-import com.github.tartaricacid.netmusic.network.NetworkHandler;
-import com.github.tartaricacid.netmusic.network.message.MusicToClientMessage;
-import net.minecraft.core.BlockPos;
-import net.minecraft.core.NonNullList;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.ListTag;
-import net.minecraft.network.protocol.Packet;
-import net.minecraft.network.protocol.game.ClientGamePacketListener;
-import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
-import net.minecraft.world.ContainerHelper;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraft.world.level.block.entity.BlockEntityType;
-import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.ItemStack;
+import net.minecraft.NBTTagCompound;
+import net.minecraft.TileEntity;
 
 import javax.annotation.Nullable;
 
-import static com.github.tartaricacid.netmusic.block.BlockMusicPlayer.CYCLE_DISABLE;
-
-public class TileEntityMusicPlayer extends BlockEntity implements MusicPlayerInv {
-    public static final BlockEntityType<TileEntityMusicPlayer> TYPE = BlockEntityType.Builder.of(TileEntityMusicPlayer::new, InitBlocks.MUSIC_PLAYER).build(null);
+public class TileEntityMusicPlayer extends TileEntity {
     private static final String IS_PLAY_TAG = "IsPlay";
     private static final String CURRENT_TIME_TAG = "CurrentTime";
     private static final String SIGNAL_TAG = "RedStoneSignal";
-    private final NonNullList<ItemStack> items = NonNullList.withSize(1, ItemStack.EMPTY);
+    private static final String ITEM_TAG = "MusicCd";
+
+    private ItemStack[] items = new ItemStack[1];
     private boolean isPlay = false;
     private int currentTime;
     private boolean hasSignal = false;
@@ -40,53 +25,61 @@ public class TileEntityMusicPlayer extends BlockEntity implements MusicPlayerInv
      */
     public @Nullable LyricRecord lyricRecord = null;
 
-    public TileEntityMusicPlayer(BlockPos blockPos, BlockState blockState) {
-        super(TYPE, blockPos, blockState);
+    public TileEntityMusicPlayer() {
     }
 
     @Override
-    public void saveAdditional(CompoundTag compound) {
-        ContainerHelper.saveAllItems(compound, items);
-        compound.putBoolean(IS_PLAY_TAG, isPlay);
-        compound.putInt(CURRENT_TIME_TAG, currentTime);
-        compound.putBoolean(SIGNAL_TAG, hasSignal);
-        super.saveAdditional(compound);
-    }
-
-    @Override
-    public void load(CompoundTag nbt) {
-        super.load(nbt);
-        // Items 为空时 ContainerHelper.loadAllItems() 不会清空 items, 需要手动处理
-        ListTag listTag = nbt.getList("Items", CompoundTag.TAG_COMPOUND);
-        if (listTag.isEmpty()) {
-            items.clear();
+    public void readFromNBT(NBTTagCompound nbt) {
+        super.readFromNBT(nbt);
+        this.isPlay = nbt.getBoolean(IS_PLAY_TAG);
+        this.currentTime = nbt.getInteger(CURRENT_TIME_TAG);
+        this.hasSignal = nbt.getBoolean(SIGNAL_TAG);
+        if (nbt.hasKey(ITEM_TAG)) {
+            this.items[0] = ItemStack.loadItemStackFromNBT(nbt.getCompoundTag(ITEM_TAG));
         } else {
-            ContainerHelper.loadAllItems(nbt, items);
+            this.items[0] = null;
         }
-        isPlay = nbt.getBoolean(IS_PLAY_TAG);
-        currentTime = nbt.getInt(CURRENT_TIME_TAG);
-        hasSignal = nbt.getBoolean(SIGNAL_TAG);
     }
 
     @Override
-    public CompoundTag getUpdateTag() {
-        return this.saveWithoutMetadata();
+    public void writeToNBT(NBTTagCompound nbt) {
+        super.writeToNBT(nbt);
+        nbt.setBoolean(IS_PLAY_TAG, this.isPlay);
+        nbt.setInteger(CURRENT_TIME_TAG, this.currentTime);
+        nbt.setBoolean(SIGNAL_TAG, this.hasSignal);
+        if (this.items[0] != null) {
+            nbt.setCompoundTag(ITEM_TAG, this.items[0].writeToNBT(new NBTTagCompound()));
+        }
     }
 
-    @Nullable
-    @Override
-    public Packet<ClientGamePacketListener> getUpdatePacket() {
-        return ClientboundBlockEntityDataPacket.create(this);
-    }
-
-    @Override
-    public NonNullList<ItemStack> getItems() {
-        return items;
-    }
-
-    @Override
     public ItemStack getItem(int slot) {
-        return getItems().get(slot);
+        return slot == 0 ? this.items[0] : null;
+    }
+
+    public void setItem(int slot, ItemStack stack) {
+        if (slot != 0) {
+            return;
+        }
+        this.items[0] = stack;
+    }
+
+    public ItemStack removeItem(int slot, int amount) {
+        if (slot != 0) {
+            return null;
+        }
+        ItemStack stack = this.items[0];
+        if (stack == null) {
+            return null;
+        }
+        if (stack.stackSize <= amount) {
+            this.items[0] = null;
+            return stack;
+        }
+        ItemStack split = stack.splitStack(amount);
+        if (stack.stackSize <= 0) {
+            this.items[0] = null;
+        }
+        return split;
     }
 
     public boolean isPlay() {
@@ -100,23 +93,41 @@ public class TileEntityMusicPlayer extends BlockEntity implements MusicPlayerInv
     public void setPlayToClient(ItemMusicCD.SongInfo info) {
         this.setCurrentTime(info.songTime * 20 + 64);
         this.isPlay = true;
-        if (level != null && !level.isClientSide) {
-            MusicToClientMessage msg = new MusicToClientMessage(worldPosition, info.songUrl, info.songTime, info.songName);
-            NetworkHandler.sendToNearBy(level, worldPosition, msg);
-        }
+        // Legacy migration note: network broadcast is reconnected when packet layer is ported to FML3.4.2 APIs.
     }
 
-    @Override
     public void setChanged() {
         ItemStack stack = getItem(0);
-        if (stack.isEmpty()) {
+        if (stack == null) {
             setPlay(false);
             setCurrentTime(0);
         }
-        super.setChanged();
-        if (level != null) {
-            BlockState state = level.getBlockState(worldPosition);
-            level.sendBlockUpdated(worldPosition, state, state, Block.UPDATE_ALL);
+        this.onInventoryChanged();
+    }
+
+    @Override
+    public void updateEntity() {
+        super.updateEntity();
+        if (this.worldObj == null || this.worldObj.isRemote) {
+            return;
+        }
+
+        this.tickTime();
+        if (0 < this.currentTime && this.currentTime < 16 && this.currentTime % 5 == 0) {
+            int metadata = this.worldObj.getBlockMetadata(this.xCoord, this.yCoord, this.zCoord);
+            if (BlockMusicPlayer.isCycleDisabled(metadata)) {
+                this.setPlay(false);
+                this.setChanged();
+            } else {
+                ItemStack stackInSlot = this.getItem(0);
+                if (stackInSlot == null) {
+                    return;
+                }
+                ItemMusicCD.SongInfo songInfo = ItemMusicCD.getSongInfo(stackInSlot);
+                if (songInfo != null) {
+                    this.setPlayToClient(songInfo);
+                }
+            }
         }
     }
 
@@ -139,25 +150,6 @@ public class TileEntityMusicPlayer extends BlockEntity implements MusicPlayerInv
     public void tickTime() {
         if (currentTime > 0) {
             currentTime--;
-        }
-    }
-
-    public static void tick(Level level, BlockPos blockPos, BlockState blockState, TileEntityMusicPlayer te) {
-        te.tickTime();
-        if (0 < te.getCurrentTime() && te.getCurrentTime() < 16 && te.getCurrentTime() % 5 == 0) {
-            if (blockState.getValue(CYCLE_DISABLE)) {
-                te.setPlay(false);
-                te.setChanged();
-            } else {
-                ItemStack stackInSlot = te.getItems().get(0);
-                if (stackInSlot.isEmpty()) {
-                    return;
-                }
-                ItemMusicCD.SongInfo songInfo = ItemMusicCD.getSongInfo(stackInSlot);
-                if (songInfo != null) {
-                    te.setPlayToClient(songInfo);
-                }
-            }
         }
     }
 }

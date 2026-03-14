@@ -1,3 +1,6 @@
 accessWidener v2 named
-accessible field net/minecraft/client/sounds/SoundManager soundEngine Lnet/minecraft/client/sounds/SoundEngine; # soundEngine
-accessible field net/minecraft/client/sounds/SoundEngine instanceToChannel Ljava/util/Map; # instanceToChannel
+accessible method net/minecraft/EnumDirection isSouth ()Z
+accessible method net/minecraft/EnumDirection isWest ()Z
+accessible method net/minecraft/EnumDirection isNorth ()Z
+accessible method net/minecraft/EnumDirection isEast ()Z
+accessible method net/minecraft/TileEntity addMapping (Ljava/lang/Class;Ljava/lang/String;)V

@@ -1,51 +1,34 @@
 package com.github.tartaricacid.netmusic.init;
 
-import com.github.tartaricacid.netmusic.NetMusic;
-import com.github.tartaricacid.netmusic.client.config.MusicListManage;
-import com.github.tartaricacid.netmusic.compat.tlm.init.CompatRegistry;
 import com.github.tartaricacid.netmusic.item.ItemMusicCD;
-import net.fabricmc.fabric.api.item.v1.FabricItemSettings;
-import net.fabricmc.fabric.api.itemgroup.v1.FabricItemGroup;
-import net.minecraft.core.Registry;
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.item.BlockItem;
-import net.minecraft.world.item.CreativeModeTab;
-import net.minecraft.world.item.Item;
-import net.minecraft.world.item.ItemStack;
+import net.minecraft.Item;
+import net.xiaoyu233.fml.reload.event.ItemRegistryEvent;
+import net.xiaoyu233.fml.reload.utils.IdUtil;
 
 public class InitItems {
-    public static Item MUSIC_CD = register(new ItemMusicCD(), "music_cd");
+    public static Item MUSIC_CD;
+    public static Item MUSIC_PLAYER;
+    public static Item CD_BURNER;
+    public static Item COMPUTER;
+    public static Item MUSIC_PLAYER_BACKPACK;
 
-    public static Item MUSIC_PLAYER = register(new BlockItem(InitBlocks.MUSIC_PLAYER, new FabricItemSettings()), "music_player");
+    public static void registerItems(ItemRegistryEvent event) {
+        MUSIC_CD = new ItemMusicCD();
+        event.register("Net Music Mod", "netmusic:music_cd", "music_cd", MUSIC_CD);
 
-    public static Item CD_BURNER = register(new BlockItem(InitBlocks.CD_BURNER, new Item.Properties().stacksTo(1)), "cd_burner");
+        event.registerItemBlock("Net Music Mod", "netmusic:music_player", "music_player", InitBlocks.MUSIC_PLAYER);
+        MUSIC_PLAYER = Item.itemsList[InitBlocks.MUSIC_PLAYER.blockID];
 
-    public static Item COMPUTER = register(new BlockItem(InitBlocks.COMPUTER, new Item.Properties().stacksTo(1)), "computer");
+        event.registerItemBlock("Net Music Mod", "netmusic:cd_burner", "cd_burner", InitBlocks.CD_BURNER);
+        CD_BURNER = Item.itemsList[InitBlocks.CD_BURNER.blockID];
 
-    public static Item MUSIC_PLAYER_BACKPACK = register(new Item(new Item.Properties().stacksTo(1)), "music_player_backpack");
+        event.registerItemBlock("Net Music Mod", "netmusic:computer", "computer", InitBlocks.COMPUTER);
+        COMPUTER = Item.itemsList[InitBlocks.COMPUTER.blockID];
 
-    public static Item register(Item item, String id) {
-        ResourceLocation itemId = ResourceLocation.tryBuild(NetMusic.MOD_ID, id);
-        return Registry.register(BuiltInRegistries.ITEM, itemId, item);
+        MUSIC_PLAYER_BACKPACK = new Item(IdUtil.getNextItemID(), "music_player_backpack") {
+        }.setUnlocalizedName("netmusic.music_player_backpack");
+        event.register("Net Music Mod", "netmusic:music_player_backpack", "music_player_backpack", MUSIC_PLAYER_BACKPACK);
     }
-
-    public static final CreativeModeTab NET_MUSIC_TAB = Registry.register(BuiltInRegistries.CREATIVE_MODE_TAB, new ResourceLocation(NetMusic.MOD_ID, "netmusic_group"), FabricItemGroup.builder()
-            .icon(() -> new ItemStack(InitBlocks.MUSIC_PLAYER))
-            .title(Component.translatable("itemGroup.netmusic"))
-            .displayItems((parameters, output) -> {
-                output.accept(new ItemStack(MUSIC_PLAYER));
-                output.accept(new ItemStack(CD_BURNER));
-                output.accept(new ItemStack(COMPUTER));
-                CompatRegistry.initCreativeModeTab(output);
-                output.accept(new ItemStack(InitItems.MUSIC_CD));
-                for (ItemMusicCD.SongInfo info : MusicListManage.SONGS) {
-                    ItemStack stack = new ItemStack(MUSIC_CD);
-                    ItemMusicCD.setSongInfo(info, stack);
-                    output.accept(stack);
-                }
-            }).build());
 
     public static void init() {
     }

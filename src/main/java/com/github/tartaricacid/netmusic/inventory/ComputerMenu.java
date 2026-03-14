@@ -2,117 +2,165 @@ package com.github.tartaricacid.netmusic.inventory;
 
 import com.github.tartaricacid.netmusic.init.InitItems;
 import com.github.tartaricacid.netmusic.item.ItemMusicCD;
-import net.minecraft.world.SimpleContainer;
-import net.minecraft.world.entity.player.Inventory;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.flag.FeatureFlags;
-import net.minecraft.world.inventory.AbstractContainerMenu;
-import net.minecraft.world.inventory.MenuType;
-import net.minecraft.world.inventory.Slot;
-import net.minecraft.world.item.ItemStack;
+import net.minecraft.Container;
+import net.minecraft.EntityPlayer;
+import net.minecraft.IInventory;
+import net.minecraft.ItemStack;
+import net.minecraft.Slot;
 
-public class ComputerMenu extends AbstractContainerMenu {
-    public static final MenuType<ComputerMenu> TYPE = new MenuType<>(ComputerMenu::new, FeatureFlags.VANILLA_SET);
-    private final Slot input = new Slot(new SimpleContainer(1), 0, 147, 14) {
-        @Override
-        public boolean mayPlace(ItemStack stack) {
-            return stack.getItem() == InitItems.MUSIC_CD;
-        }
-    };
-    private final Slot output = new Slot(new SimpleContainer(1), 0, 147, 79) {
-        @Override
-        public boolean mayPlace(ItemStack stack) {
-            return false;
-        }
-
-        @Override
-        public int getMaxStackSize() {
-            return 1;
-        }
-    };
+public class ComputerMenu extends Container {
+    private final Slot input;
+    private final Slot output;
 
     private ItemMusicCD.SongInfo songInfo;
 
-    public ComputerMenu(int id, Inventory inventory) {
-        this(id, inventory, null);
+    public ComputerMenu(EntityPlayer player) {
+        super(player);
+        IInventory inputInv = new OneSlotInventory();
+        IInventory outputInv = new OneSlotInventory();
 
-        this.addSlot(input);
-        this.addSlot(output);
-
-        for (int i = 0; i < 9; ++i) {
-            this.addSlot(new Slot(inventory, i, 8 + i * 18, 192));
-        }
-
-        for (int i = 0; i < 3; ++i) {
-            for (int j = 0; j < 9; ++j) {
-                this.addSlot(new Slot(inventory, j + i * 9 + 9, 8 + j * 18, 134 + i * 18));
+        this.input = this.addSlotToContainer(new Slot(inputInv, 0, 147, 14) {
+            @Override
+            public boolean isItemValid(ItemStack stack) {
+                return stack != null && stack.itemID == InitItems.MUSIC_CD.itemID;
             }
-        }
-    }
-
-    public ComputerMenu(int id, Inventory playerInventory, Inventory inventory) {
-        super(TYPE, id);
-    }
-
-    @Override
-    public ItemStack quickMoveStack(Player player, int index) {
-        ItemStack itemStack = ItemStack.EMPTY;
-        Slot slot = this.slots.get(index);
-        if (slot != null && slot.hasItem()) {
-            ItemStack slotItem = slot.getItem();
-            itemStack = slotItem.copy();
-            if (index < 2) {
-                if (!this.moveItemStackTo(slotItem, 2, this.slots.size(), false)) {
-                    return ItemStack.EMPTY;
-                }
-            } else if (!this.moveItemStackTo(slotItem, 0, 2, true)) {
-                return ItemStack.EMPTY;
+        });
+        this.output = this.addSlotToContainer(new Slot(outputInv, 0, 147, 79) {
+            @Override
+            public boolean isItemValid(ItemStack stack) {
+                return false;
             }
 
-            if (slotItem.isEmpty()) {
-                slot.setByPlayer(ItemStack.EMPTY);
-            } else {
-                slot.setChanged();
+            @Override
+            public int getSlotStackLimit() {
+                return 1;
             }
-        }
-
-        return itemStack;
+        });
     }
 
     @Override
-    public boolean stillValid(Player player) {
+    public boolean canInteractWith(EntityPlayer player) {
         return true;
     }
 
     @Override
-    public void removed(Player player) {
-        super.removed(player);
-        giveItemToPlayer(player, input.getItem(), 0);
-        giveItemToPlayer(player, output.getItem(), 1);
+    public void onContainerClosed(EntityPlayer player) {
+        super.onContainerClosed(player);
+        giveItemToPlayer(player, input.getStack());
+        giveItemToPlayer(player, output.getStack());
     }
 
-    private static void giveItemToPlayer(Player player, ItemStack stack, int preferredSlot) {
-        if (!stack.isEmpty()) {
-            if (!player.getInventory().add(stack)) {
-                player.drop(stack, false);
+    private static void giveItemToPlayer(EntityPlayer player, ItemStack stack) {
+        if (stack != null) {
+            if (!player.inventory.addItemStackToInventory(stack)) {
+                player.dropPlayerItem(stack);
             }
         }
     }
 
     public void setSongInfo(ItemMusicCD.SongInfo setSongInfo) {
         this.songInfo = setSongInfo;
-        if (!this.input.getItem().isEmpty() && this.output.getItem().isEmpty()) {
-            ItemStack itemStack = this.input.getItem().copyWithCount(1);
-            this.input.getItem().shrink(1);
+        if (this.input.getStack() != null && this.output.getStack() == null) {
+            ItemStack itemStack = this.input.getStack().copy();
+            itemStack.stackSize = 1;
+            this.input.getStack().stackSize -= 1;
+            if (this.input.getStack().stackSize <= 0) {
+                this.input.putStack(null);
+            }
             ItemMusicCD.SongInfo rawSongInfo = ItemMusicCD.getSongInfo(itemStack);
             if (rawSongInfo == null || !rawSongInfo.readOnly) {
                 ItemMusicCD.setSongInfo(this.songInfo, itemStack);
             }
-            this.output.setByPlayer(itemStack);
+            this.output.putStack(itemStack);
         }
     }
 
     public Slot getInput() {
         return input;
+    }
+
+    private static class OneSlotInventory implements IInventory {
+        private ItemStack stack;
+
+        @Override
+        public int getSizeInventory() {
+            return 1;
+        }
+
+        @Override
+        public ItemStack getStackInSlot(int i) {
+            return this.stack;
+        }
+
+        @Override
+        public ItemStack decrStackSize(int i, int amount) {
+            if (this.stack == null) {
+                return null;
+            }
+            if (this.stack.stackSize <= amount) {
+                ItemStack result = this.stack;
+                this.stack = null;
+                return result;
+            }
+            ItemStack split = this.stack.splitStack(amount);
+            if (this.stack.stackSize <= 0) {
+                this.stack = null;
+            }
+            return split;
+        }
+
+        @Override
+        public ItemStack getStackInSlotOnClosing(int i) {
+            ItemStack result = this.stack;
+            this.stack = null;
+            return result;
+        }
+
+        @Override
+        public void setInventorySlotContents(int i, ItemStack itemStack) {
+            this.stack = itemStack;
+        }
+
+        @Override
+        public String getCustomNameOrUnlocalized() {
+            return "container.netmusic.computer";
+        }
+
+        @Override
+        public boolean hasCustomName() {
+            return false;
+        }
+
+        @Override
+        public int getInventoryStackLimit() {
+            return 1;
+        }
+
+        @Override
+        public void onInventoryChanged() {
+        }
+
+        @Override
+        public boolean isUseableByPlayer(EntityPlayer entityPlayer) {
+            return true;
+        }
+
+        @Override
+        public void openChest() {
+        }
+
+        @Override
+        public void closeChest() {
+        }
+
+        @Override
+        public boolean isItemValidForSlot(int i, ItemStack itemStack) {
+            return true;
+        }
+
+        @Override
+        public void destroyInventory() {
+            this.stack = null;
+        }
     }
 }

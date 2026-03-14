@@ -1,22 +1,32 @@
 package com.github.tartaricacid.netmusic.init;
 
-import com.github.tartaricacid.netmusic.NetMusic;
 import com.github.tartaricacid.netmusic.block.BlockCDBurner;
 import com.github.tartaricacid.netmusic.block.BlockComputer;
 import com.github.tartaricacid.netmusic.block.BlockMusicPlayer;
-import net.minecraft.core.Registry;
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.level.block.Block;
+import net.minecraft.Block;
+import net.minecraft.Item;
+import net.minecraft.ItemBlock;
+import net.xiaoyu233.fml.reload.event.BlockRegistryEvent;
 
 public class InitBlocks {
-    public static final Block MUSIC_PLAYER = register("music_player", new BlockMusicPlayer());
-    public static final Block CD_BURNER = register("cd_burner", new BlockCDBurner());
-    public static final Block COMPUTER = register("computer", new BlockComputer());
+    public static Block MUSIC_PLAYER;
+    public static Block CD_BURNER;
+    public static Block COMPUTER;
 
-    private static <T extends Block> T register(String name, T block) {
-        Registry.register(BuiltInRegistries.BLOCK, new ResourceLocation(NetMusic.MOD_ID, name), block);
-        return block;
+    public static void registerBlocks(BlockRegistryEvent event) {
+        MUSIC_PLAYER = new BlockMusicPlayer().setUnlocalizedName("netmusic.music_player");
+        CD_BURNER = new BlockCDBurner().setUnlocalizedName("netmusic.cd_burner");
+        COMPUTER = new BlockComputer().setUnlocalizedName("netmusic.computer");
+
+
+        Item.itemsList[MUSIC_PLAYER.blockID] = new ItemBlock(MUSIC_PLAYER);
+        event.registerBlock("Net Music Mod", "netmusic:music_player", "music_player", MUSIC_PLAYER);
+
+        Item.itemsList[CD_BURNER.blockID] = new ItemBlock(CD_BURNER);
+        event.registerBlock("Net Music Mod", "netmusic:cd_burner", "cd_burner", CD_BURNER);
+
+        Item.itemsList[COMPUTER.blockID] = new ItemBlock(COMPUTER);
+        event.registerBlock("Net Music Mod", "netmusic:computer", "computer", COMPUTER);
     }
 
     public static void init() {

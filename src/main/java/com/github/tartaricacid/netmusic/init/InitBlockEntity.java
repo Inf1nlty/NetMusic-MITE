@@ -1,19 +1,11 @@
 package com.github.tartaricacid.netmusic.init;
 
-import com.github.tartaricacid.netmusic.NetMusic;
 import com.github.tartaricacid.netmusic.tileentity.TileEntityMusicPlayer;
-import net.minecraft.core.Registry;
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.xiaoyu233.fml.reload.event.TileEntityRegisterEvent;
 
 public class InitBlockEntity {
-    public static final BlockEntityType<TileEntityMusicPlayer> MUSIC_PLAYER_TE = register("music_player", TileEntityMusicPlayer.TYPE);
-
-    public static final <T extends BlockEntityType<?>> T register(String name, T blockEntityType) {
-        return Registry.register(BuiltInRegistries.BLOCK_ENTITY_TYPE, new ResourceLocation(NetMusic.MOD_ID, name), blockEntityType);
-    }
-
-    public static void init() {
+    public static void registerTileEntities(TileEntityRegisterEvent event) {
+        event.register(TileEntityMusicPlayer.class, "NetMusicMusicPlayer");
     }
 }
+

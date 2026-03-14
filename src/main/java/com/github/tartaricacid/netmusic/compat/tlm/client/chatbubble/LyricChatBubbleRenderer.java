@@ -155,3 +155,4 @@ public class LyricChatBubbleRenderer implements IChatBubbleRenderer {
         }
     }
 }
+

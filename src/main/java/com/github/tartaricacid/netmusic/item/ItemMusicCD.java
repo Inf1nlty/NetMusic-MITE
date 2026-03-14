@@ -2,39 +2,36 @@ package com.github.tartaricacid.netmusic.item;
 
 import com.github.tartaricacid.netmusic.api.pojo.NetEaseMusicList;
 import com.github.tartaricacid.netmusic.api.pojo.NetEaseMusicSong;
-import com.github.tartaricacid.netmusic.init.InitItems;
 import com.google.common.collect.Lists;
 import com.google.gson.annotations.SerializedName;
-import net.minecraft.ChatFormatting;
-import net.minecraft.client.resources.language.I18n;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.StringTag;
-import net.minecraft.nbt.Tag;
-import net.minecraft.network.chat.CommonComponents;
-import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.MutableComponent;
-import net.minecraft.world.item.Item;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.TooltipFlag;
-import net.minecraft.world.level.Level;
+import net.minecraft.EntityPlayer;
+import net.minecraft.EnumChatFormatting;
+import net.minecraft.Item;
+import net.minecraft.ItemStack;
+import net.minecraft.NBTBase;
+import net.minecraft.NBTTagCompound;
+import net.minecraft.NBTTagList;
+import net.minecraft.NBTTagString;
+import net.minecraft.Slot;
+import net.minecraft.StatCollector;
+import net.xiaoyu233.fml.reload.utils.IdUtil;
 import org.apache.commons.lang3.StringUtils;
 
-import javax.annotation.Nullable;
 import java.util.List;
 
 public class ItemMusicCD extends Item {
     public static final String SONG_INFO_TAG = "NetMusicSongInfo";
 
     public ItemMusicCD() {
-        super((new Properties()));
+        super(IdUtil.getNextItemID(), "music_cd");
+        this.setUnlocalizedName("netmusic.music_cd");
     }
 
     public static SongInfo getSongInfo(ItemStack stack) {
-        if (stack.getItem() == InitItems.MUSIC_CD) {
-            CompoundTag tag = stack.getTag();
-            if (tag != null && tag.contains(SONG_INFO_TAG, Tag.TAG_COMPOUND)) {
-                CompoundTag infoTag = tag.getCompound(SONG_INFO_TAG);
+        if (stack != null) {
+            NBTTagCompound tag = stack.getTagCompound();
+            if (tag != null && tag.hasKey(SONG_INFO_TAG)) {
+                NBTTagCompound infoTag = tag.getCompoundTag(SONG_INFO_TAG);
                 return SongInfo.deserializeNBT(infoTag);
             }
         }
@@ -42,34 +39,33 @@ public class ItemMusicCD extends Item {
     }
 
     public static ItemStack setSongInfo(SongInfo info, ItemStack stack) {
-        if (stack.getItem() == InitItems.MUSIC_CD) {
-            CompoundTag tag = stack.getTag();
+        if (stack != null) {
+            NBTTagCompound tag = stack.getTagCompound();
             if (tag == null) {
-                tag = new CompoundTag();
+                tag = new NBTTagCompound();
             }
-            CompoundTag songInfoTag = new CompoundTag();
+            NBTTagCompound songInfoTag = new NBTTagCompound();
             SongInfo.serializeNBT(info, songInfoTag);
-            tag.put(SONG_INFO_TAG, songInfoTag);
-            stack.setTag(tag);
+            tag.setCompoundTag(SONG_INFO_TAG, songInfoTag);
+            stack.setTagCompound(tag);
         }
         return stack;
     }
 
     @Override
-    public Component getName(ItemStack stack) {
+    public String getItemDisplayName(ItemStack stack) {
         SongInfo info = getSongInfo(stack);
         if (info != null) {
             String name = info.songName;
             if (info.vip) {
-                name = name + " §4§l[VIP]";
+                name = name + " " + EnumChatFormatting.DARK_RED + "[VIP]";
             }
             if (info.readOnly) {
-                MutableComponent readOnlyText = Component.translatable("tooltips.netmusic.cd.read_only").withStyle(ChatFormatting.YELLOW);
-                return Component.literal(name).append(CommonComponents.SPACE).append(readOnlyText);
+                return name + " " + EnumChatFormatting.YELLOW + StatCollector.translateToLocal("tooltips.netmusic.cd.read_only");
             }
-            return Component.literal(name);
+            return name;
         }
-        return super.getName(stack);
+        return super.getItemDisplayName(stack);
     }
 
     private String getSongTime(int songTime) {
@@ -77,29 +73,29 @@ public class ItemMusicCD extends Item {
         int sec = songTime % 60;
         String minStr = min <= 9 ? ("0" + min) : ("" + min);
         String secStr = sec <= 9 ? ("0" + sec) : ("" + sec);
-        return I18n.get("tooltips.netmusic.cd.time.format", minStr, secStr);
+        return StatCollector.translateToLocalFormatted("tooltips.netmusic.cd.time.format", minStr, secStr);
     }
 
-
     @Override
-    public void appendHoverText(ItemStack stack, @Nullable Level worldIn, List<Component> tooltip, TooltipFlag flagIn) {
-        SongInfo info = getSongInfo(stack);
+    public void addInformation(ItemStack stack, EntityPlayer player, List tooltip, boolean extendedInfo, Slot slot) {
+        super.addInformation(stack, player, tooltip, extendedInfo, slot);
+        SongInfo songInfo = getSongInfo(stack);
         final String prefix = "§a▍ §7";
         final String delimiter = ": ";
-        if (info != null) {
-            if (StringUtils.isNoneBlank(info.transName)) {
-                String text = prefix + I18n.get("tooltips.netmusic.cd.trans_name") + delimiter + "§6" + info.transName;
-                tooltip.add(Component.literal(text));
+        if (songInfo != null) {
+            if (StringUtils.isNoneBlank(songInfo.transName)) {
+                String text = prefix + StatCollector.translateToLocal("tooltips.netmusic.cd.trans_name") + delimiter + "§6" + songInfo.transName;
+                tooltip.add(text);
             }
-            if (info.artists != null && !info.artists.isEmpty()) {
-                String artistNames = StringUtils.join(info.artists, " | ");
-                String text = prefix + I18n.get("tooltips.netmusic.cd.artists") + delimiter + "§3" + artistNames;
-                tooltip.add(Component.literal(text));
+            if (songInfo.artists != null && !songInfo.artists.isEmpty()) {
+                String artistNames = StringUtils.join(songInfo.artists, " | ");
+                String text = prefix + StatCollector.translateToLocal("tooltips.netmusic.cd.artists") + delimiter + "§3" + artistNames;
+                tooltip.add(text);
             }
-            String text = prefix + I18n.get("tooltips.netmusic.cd.time") + delimiter + "§5" + getSongTime(info.songTime);
-            tooltip.add(Component.literal(text));
+            String text = prefix + StatCollector.translateToLocal("tooltips.netmusic.cd.time") + delimiter + "§5" + getSongTime(songInfo.songTime);
+            tooltip.add(text);
         } else {
-            tooltip.add(Component.translatable("tooltips.netmusic.cd.empty").withStyle(ChatFormatting.RED));
+            tooltip.add(EnumChatFormatting.RED + StatCollector.translateToLocal("tooltips.netmusic.cd.empty"));
         }
     }
 
@@ -159,43 +155,50 @@ public class ItemMusicCD extends Item {
             this.artists = track.getArtists();
         }
 
-        public SongInfo(CompoundTag tag) {
+        public SongInfo(NBTTagCompound tag) {
             this.songUrl = tag.getString("url");
             this.songName = tag.getString("name");
-            this.songTime = tag.getInt("time");
-            if (tag.contains("trans_name", Tag.TAG_STRING)) {
+            this.songTime = tag.getInteger("time");
+            if (tag.hasKey("trans_name")) {
                 this.transName = tag.getString("trans_name");
             }
-            if (tag.contains("vip", Tag.TAG_BYTE)) {
+            if (tag.hasKey("vip")) {
                 this.vip = tag.getBoolean("vip");
             }
-            if (tag.contains("read_only", Tag.TAG_BYTE)) {
+            if (tag.hasKey("read_only")) {
                 this.readOnly = tag.getBoolean("read_only");
             }
-            if (tag.contains("artists", Tag.TAG_LIST)) {
-                ListTag tagList = tag.getList("artists", Tag.TAG_STRING);
+            if (tag.hasKey("artists")) {
+                NBTTagList tagList = tag.getTagList("artists");
                 this.artists = Lists.newArrayList();
-                tagList.forEach(nbt -> this.artists.add(nbt.getAsString()));
+                for (int i = 0; i < tagList.tagCount(); i++) {
+                    NBTBase nbt = tagList.tagAt(i);
+                    if (nbt instanceof NBTTagString stringTag) {
+                        this.artists.add(stringTag.data);
+                    }
+                }
             }
         }
 
-        public static SongInfo deserializeNBT(CompoundTag tag) {
+        public static SongInfo deserializeNBT(NBTTagCompound tag) {
             return new SongInfo(tag);
         }
 
-        public static void serializeNBT(SongInfo info, CompoundTag tag) {
-            tag.putString("url", info.songUrl);
-            tag.putString("name", info.songName);
-            tag.putInt("time", info.songTime);
+        public static void serializeNBT(SongInfo info, NBTTagCompound tag) {
+            tag.setString("url", info.songUrl);
+            tag.setString("name", info.songName);
+            tag.setInteger("time", info.songTime);
             if (StringUtils.isNoneBlank(info.transName)) {
-                tag.putString("trans_name", info.transName);
+                tag.setString("trans_name", info.transName);
             }
-            tag.putBoolean("vip", info.vip);
-            tag.putBoolean("read_only", info.readOnly);
+            tag.setBoolean("vip", info.vip);
+            tag.setBoolean("read_only", info.readOnly);
             if (info.artists != null && !info.artists.isEmpty()) {
-                ListTag nbt = new ListTag();
-                info.artists.forEach(name -> nbt.add(StringTag.valueOf(name)));
-                tag.put("artists", nbt);
+                NBTTagList nbt = new NBTTagList();
+                for (String name : info.artists) {
+                    nbt.appendTag(new NBTTagString("", name));
+                }
+                tag.setTag("artists", nbt);
             }
         }
     }

@@ -92,3 +92,4 @@ public class MaidNetMusicSound extends AbstractTickableSoundInstance {
         this.stop();
     }
 }
+

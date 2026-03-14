@@ -1,23 +1,23 @@
 package com.github.tartaricacid.netmusic.inventory;
 
-import net.minecraft.core.NonNullList;
-import net.minecraft.world.Container;
-import net.minecraft.world.ContainerHelper;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.ItemStack;
+import net.minecraft.EntityPlayer;
+import net.minecraft.IInventory;
+import net.minecraft.ItemStack;
 
-public interface ImplementedInventory extends Container {
-    NonNullList<ItemStack> getItems();
+import java.util.List;
+
+public interface ImplementedInventory extends IInventory {
+    List<ItemStack> getItems();
 
     @Override
-    default int getContainerSize() {
+    default int getSizeInventory() {
         return getItems().size();
     }
 
     @Override
     default boolean isEmpty() {
-        for (int i = 0; i < getContainerSize(); i++) {
-            if (!getItem(i).isEmpty()) {
+        for (int i = 0; i < getSizeInventory(); i++) {
+            if (getStackInSlot(i) != null) {
                 return false;
             }
         }
@@ -25,39 +25,81 @@ public interface ImplementedInventory extends Container {
     }
 
     @Override
-    default ItemStack getItem(int slot) {
+    default ItemStack getStackInSlot(int slot) {
         return getItems().get(slot);
     }
 
     @Override
-    default ItemStack removeItem(int slot, int amount) {
-        ItemStack result = ContainerHelper.removeItem(getItems(), slot, amount);
-        if (!result.isEmpty()) {
-            setChanged();
+    default ItemStack decrStackSize(int slot, int amount) {
+        ItemStack stack = getStackInSlot(slot);
+        if (stack == null) {
+            return null;
         }
-        return result;
+        if (stack.stackSize <= amount) {
+            setInventorySlotContents(slot, null);
+            onInventoryChanged();
+            return stack;
+        }
+        ItemStack split = stack.splitStack(amount);
+        if (stack.stackSize <= 0) {
+            setInventorySlotContents(slot, null);
+        }
+        onInventoryChanged();
+        return split;
     }
 
     @Override
-    default ItemStack removeItemNoUpdate(int slot) {
-        return ContainerHelper.takeItem(getItems(), slot);
+    default ItemStack getStackInSlotOnClosing(int slot) {
+        ItemStack stack = getStackInSlot(slot);
+        setInventorySlotContents(slot, null);
+        return stack;
     }
 
     @Override
-    default void setItem(int slot, ItemStack stack) {
+    default void setInventorySlotContents(int slot, ItemStack stack) {
         getItems().set(slot, stack);
-        if (stack.getCount() > getMaxStackSize()) {
-            stack.setCount(getMaxStackSize());
+        if (stack != null && stack.stackSize > getInventoryStackLimit()) {
+            stack.stackSize = getInventoryStackLimit();
         }
     }
 
     @Override
-    default boolean stillValid(Player player) {
+    default String getCustomNameOrUnlocalized() {
+        return "container.netmusic";
+    }
+
+    @Override
+    default boolean hasCustomName() {
+        return false;
+    }
+
+    @Override
+    default int getInventoryStackLimit() {
+        return 64;
+    }
+
+    @Override
+    default boolean isUseableByPlayer(EntityPlayer player) {
         return true;
     }
 
     @Override
-    default void clearContent() {
-        getItems().clear();
+    default void openChest() {
+    }
+
+    @Override
+    default void closeChest() {
+    }
+
+    @Override
+    default boolean isItemValidForSlot(int slot, ItemStack stack) {
+        return true;
+    }
+
+    @Override
+    default void destroyInventory() {
+        for (int i = 0; i < getSizeInventory(); i++) {
+            setInventorySlotContents(i, null);
+        }
     }
 }

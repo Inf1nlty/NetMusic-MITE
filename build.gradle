@@ -7,7 +7,7 @@ version = project.mod_version
 group = project.maven_group
 
 base {
-    archivesName = "[服务端模组动物刷新]" + project.archives_base_name
+    archivesName = "[服务端模组网络音乐]" + project.archives_base_name
 }
 
 repositories {
@@ -47,11 +47,11 @@ dependencies {
 def fmlResolvedFile = configurations.fml.files.iterator().next()
 
 loom {
-//    accessWidenerPath = file("src/main/resources/animalrefresh.accessWidener")
+    accessWidenerPath = file("src/main/resources/netmusic.accessWidener")
     mergedMinecraftJar()
 
     mods {
-        "AnimalRefresh" {
+        "NetMusic" {
             sourceSet sourceSets.main
         }
     }

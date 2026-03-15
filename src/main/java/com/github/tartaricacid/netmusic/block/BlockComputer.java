@@ -1,5 +1,7 @@
 package com.github.tartaricacid.netmusic.block;
 
+import com.github.tartaricacid.netmusic.util.MusicCdWriteHelper;
+import com.github.tartaricacid.netmusic.util.PendingSongTracker;
 import com.github.tartaricacid.netmusic.util.PlayerInteractionTracker;
 import net.minecraft.*;
 import net.xiaoyu233.fml.reload.utils.IdUtil;
@@ -42,10 +44,31 @@ public class BlockComputer extends BlockDirectional {
     @Override
     public boolean onBlockActivated(World world, int x, int y, int z, EntityPlayer player, EnumFace face, float offsetX, float offsetY, float offsetZ) {
         if (player.onServer()) {
-            PlayerInteractionTracker.markComputer(player, world.getTotalWorldTime());
+            PlayerInteractionTracker.markComputer(player, world.getTotalWorldTime(), x, y, z);
+            if (tryApplyPendingSong(world, player)) {
+                return true;
+            }
+            player.addChatMessage("message.netmusic.computer.hint");
             // Temporary compatibility bridge: keep interaction alive until legacy custom container wiring is finished.
             player.displayGUIWorkbench(x, y, z);
         }
+        return true;
+    }
+
+    private static boolean tryApplyPendingSong(World world, EntityPlayer player) {
+        PendingSongTracker.PendingSong pending = PendingSongTracker.getPendingForSource(
+                player, PendingSongTracker.Source.COMPUTER, world.getTotalWorldTime(), 20L * 120L);
+        if (pending == null) {
+            return false;
+        }
+
+        if (!MusicCdWriteHelper.writeSongToPlayerCd(player, pending.songInfo)) {
+            player.addChatMessage("message.netmusic.music_cd.need_writable_cd");
+            return true;
+        }
+
+        PendingSongTracker.clear(player);
+        player.addChatMessage("message.netmusic.computer.applied");
         return true;
     }
 

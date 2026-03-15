@@ -13,12 +13,12 @@ public final class PlayerInteractionTracker {
     private PlayerInteractionTracker() {
     }
 
-    public static void markCdBurner(EntityPlayer player, long worldTick) {
-        mark(player, Kind.CD_BURNER, worldTick);
+    public static void markCdBurner(EntityPlayer player, long worldTick, int x, int y, int z) {
+        mark(player, Kind.CD_BURNER, worldTick, x, y, z);
     }
 
-    public static void markComputer(EntityPlayer player, long worldTick) {
-        mark(player, Kind.COMPUTER, worldTick);
+    public static void markComputer(EntityPlayer player, long worldTick, int x, int y, int z) {
+        mark(player, Kind.COMPUTER, worldTick, x, y, z);
     }
 
     public static boolean hasRecentNetMusicInteraction(EntityPlayer player, long worldTick, long maxAgeTicks) {
@@ -34,6 +34,34 @@ public final class PlayerInteractionTracker {
     }
 
     public static boolean hasRecentCdWriterInteraction(EntityPlayer player, long worldTick, long maxAgeTicks) {
+        return hasRecentInteraction(player, worldTick, maxAgeTicks, Kind.CD_BURNER, Kind.COMPUTER);
+    }
+
+    public static boolean hasRecentCDBurnerInteraction(EntityPlayer player, long worldTick, long maxAgeTicks) {
+        return hasRecentInteraction(player, worldTick, maxAgeTicks, Kind.CD_BURNER);
+    }
+
+    public static boolean hasRecentComputerInteraction(EntityPlayer player, long worldTick, long maxAgeTicks) {
+        return hasRecentInteraction(player, worldTick, maxAgeTicks, Kind.COMPUTER);
+    }
+
+    public static String getRecentInteractionText(EntityPlayer player, long worldTick, long maxAgeTicks) {
+        cleanup(worldTick, maxAgeTicks);
+        if (player == null || maxAgeTicks < 0) {
+            return "none";
+        }
+        Context context = LAST_CONTEXT.get(player.getEntityName());
+        if (context == null) {
+            return "none";
+        }
+        if (worldTick - context.tick > maxAgeTicks) {
+            return "none";
+        }
+        long age = Math.max(0L, worldTick - context.tick);
+        return context.kind.name().toLowerCase() + " @(" + context.x + "," + context.y + "," + context.z + ") age=" + age + "t";
+    }
+
+    private static boolean hasRecentInteraction(EntityPlayer player, long worldTick, long maxAgeTicks, Kind... allowed) {
         cleanup(worldTick, maxAgeTicks);
         if (player == null || maxAgeTicks < 0) {
             return false;
@@ -45,14 +73,19 @@ public final class PlayerInteractionTracker {
         if (worldTick - context.tick > maxAgeTicks) {
             return false;
         }
-        return context.kind == Kind.CD_BURNER || context.kind == Kind.COMPUTER;
+        for (Kind kind : allowed) {
+            if (context.kind == kind) {
+                return true;
+            }
+        }
+        return false;
     }
 
-    private static void mark(EntityPlayer player, Kind kind, long worldTick) {
+    private static void mark(EntityPlayer player, Kind kind, long worldTick, int x, int y, int z) {
         if (player == null) {
             return;
         }
-        LAST_CONTEXT.put(player.getEntityName(), new Context(kind, worldTick));
+        LAST_CONTEXT.put(player.getEntityName(), new Context(kind, worldTick, x, y, z));
     }
 
     private static void cleanup(long worldTick, long maxAgeTicks) {
@@ -72,10 +105,16 @@ public final class PlayerInteractionTracker {
     private static final class Context {
         private final Kind kind;
         private final long tick;
+        private final int x;
+        private final int y;
+        private final int z;
 
-        private Context(Kind kind, long tick) {
+        private Context(Kind kind, long tick, int x, int y, int z) {
             this.kind = kind;
             this.tick = tick;
+            this.x = x;
+            this.y = y;
+            this.z = z;
         }
     }
 }

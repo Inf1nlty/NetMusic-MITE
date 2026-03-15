@@ -4,15 +4,15 @@ import com.github.tartaricacid.netmusic.NetMusic;
 import com.github.tartaricacid.netmusic.client.config.MusicListManage;
 import com.github.tartaricacid.netmusic.inventory.CDBurnerMenu;
 import com.github.tartaricacid.netmusic.inventory.ComputerMenu;
-import com.github.tartaricacid.netmusic.init.InitItems;
 import com.github.tartaricacid.netmusic.item.ItemMusicCD;
 import com.github.tartaricacid.netmusic.network.NetworkHandler;
 import com.github.tartaricacid.netmusic.network.message.GetMusicListMessage;
+import com.github.tartaricacid.netmusic.util.MusicCdWriteHelper;
+import com.github.tartaricacid.netmusic.util.PendingSongTracker;
 import com.github.tartaricacid.netmusic.util.PlayerInteractionTracker;
 import net.minecraft.ChatMessageComponent;
 import net.minecraft.CommandBase;
 import net.minecraft.ICommandSender;
-import net.minecraft.ItemStack;
 import net.minecraft.ServerPlayer;
 import net.minecraft.StatCollector;
 import net.minecraft.WrongUsageException;
@@ -42,7 +42,7 @@ public class NetMusicCommand extends CommandBase {
 
     @Override
     public String getCommandUsage(ICommandSender sender) {
-        return "/netmusic <reload|add163|add163cd|adddjcd|addurlcd> ...";
+        return "/netmusic <reload|add163|add163cd|adddjcd|addurlcd|status|clearpending> ...";
     }
 
     @Override
@@ -68,6 +68,24 @@ public class NetMusicCommand extends CommandBase {
             NetworkHandler.sendToClientPlayer(new GetMusicListMessage(GetMusicListMessage.RELOAD_MESSAGE), player);
             sender.sendChatToPlayer(ChatMessageComponent.createFromText(
                     StatCollector.translateToLocal("command.netmusic.music_cd.reload.success")));
+            return;
+        }
+
+        if ("status".equalsIgnoreCase(sub)) {
+            long now = player.worldObj == null ? 0L : player.worldObj.getTotalWorldTime();
+            String status = PlayerInteractionTracker.getRecentInteractionText(player, now, INTERACTION_WINDOW_TICKS);
+            sender.sendChatToPlayer(ChatMessageComponent.createFromText(
+                    StatCollector.translateToLocalFormatted("command.netmusic.music_cd.status", status)));
+            String pending = PendingSongTracker.getPendingText(player, now, INTERACTION_WINDOW_TICKS * 4L);
+            sender.sendChatToPlayer(ChatMessageComponent.createFromText(
+                    StatCollector.translateToLocalFormatted("command.netmusic.music_cd.pending.status", pending)));
+            return;
+        }
+
+        if ("clearpending".equalsIgnoreCase(sub)) {
+            PendingSongTracker.clear(player);
+            sender.sendChatToPlayer(ChatMessageComponent.createFromText(
+                    StatCollector.translateToLocal("command.netmusic.music_cd.pending.clear")));
             return;
         }
 
@@ -105,13 +123,8 @@ public class NetMusicCommand extends CommandBase {
             }
             try {
                 ItemMusicCD.SongInfo songInfo = MusicListManage.get163Song(musicId);
-                if (!setSongToOpenMenu(player, songInfo) && !writeSongWithInteractionCheck(player, songInfo)) {
-                    sender.sendChatToPlayer(ChatMessageComponent.createFromText(
-                            StatCollector.translateToLocal("command.netmusic.music_cd.need_interaction")));
-                    return;
-                }
-                sender.sendChatToPlayer(ChatMessageComponent.createFromText(
-                        StatCollector.translateToLocal("command.netmusic.music_cd.add163cd.success")));
+                applySongForSource(player, sender, songInfo, PendingSongTracker.Source.CD_BURNER,
+                        "command.netmusic.music_cd.need_cd_burner", "command.netmusic.music_cd.add163cd.success");
             } catch (Exception e) {
                 NetMusic.LOGGER.error("Failed to get NetEase song by id: {}", musicId, e);
                 sender.sendChatToPlayer(ChatMessageComponent.createFromText(
@@ -137,13 +150,8 @@ public class NetMusicCommand extends CommandBase {
             }
             try {
                 ItemMusicCD.SongInfo songInfo = MusicListManage.getDjSong(musicId);
-                if (!setSongToOpenMenu(player, songInfo) && !writeSongWithInteractionCheck(player, songInfo)) {
-                    sender.sendChatToPlayer(ChatMessageComponent.createFromText(
-                            StatCollector.translateToLocal("command.netmusic.music_cd.need_interaction")));
-                    return;
-                }
-                sender.sendChatToPlayer(ChatMessageComponent.createFromText(
-                        StatCollector.translateToLocal("command.netmusic.music_cd.addDJcd.success")));
+                applySongForSource(player, sender, songInfo, PendingSongTracker.Source.CD_BURNER,
+                        "command.netmusic.music_cd.need_cd_burner", "command.netmusic.music_cd.addDJcd.success");
             } catch (Exception e) {
                 NetMusic.LOGGER.error("Failed to get NetEase DJ song by id: {}", musicId, e);
                 sender.sendChatToPlayer(ChatMessageComponent.createFromText(
@@ -183,13 +191,8 @@ public class NetMusicCommand extends CommandBase {
             }
 
             ItemMusicCD.SongInfo songInfo = new ItemMusicCD.SongInfo(url, songName, time, false);
-            if (!setSongToOpenMenu(player, songInfo) && !writeSongWithInteractionCheck(player, songInfo)) {
-                sender.sendChatToPlayer(ChatMessageComponent.createFromText(
-                        StatCollector.translateToLocal("command.netmusic.music_cd.need_interaction")));
-                return;
-            }
-            sender.sendChatToPlayer(ChatMessageComponent.createFromText(
-                    StatCollector.translateToLocal("command.netmusic.music_cd.addurlcd.success")));
+            applySongForSource(player, sender, songInfo, PendingSongTracker.Source.COMPUTER,
+                    "command.netmusic.music_cd.need_computer", "command.netmusic.music_cd.addurlcd.success");
             return;
         }
 
@@ -199,7 +202,7 @@ public class NetMusicCommand extends CommandBase {
     @Override
     public List addTabCompletionOptions(ICommandSender sender, String[] args) {
         if (args.length == 1) {
-            return getListOfStringsMatchingLastWord(args, "reload", "add163", "add163cd", "adddjcd", "addurlcd", "help");
+            return getListOfStringsMatchingLastWord(args, "reload", "add163", "add163cd", "adddjcd", "addurlcd", "status", "clearpending", "help");
         }
         if (args.length == 2 && ("add163".equalsIgnoreCase(args[0]) || "add163cd".equalsIgnoreCase(args[0]) || "adddjcd".equalsIgnoreCase(args[0]))) {
             return Collections.singletonList("<id>");
@@ -219,6 +222,27 @@ public class NetMusicCommand extends CommandBase {
         sender.sendChatToPlayer(ChatMessageComponent.createFromText("/netmusic add163cd <musicId>"));
         sender.sendChatToPlayer(ChatMessageComponent.createFromText("/netmusic adddjcd <djMusicId>"));
         sender.sendChatToPlayer(ChatMessageComponent.createFromText("/netmusic addurlcd <url_or_path> <timeSecond> <name>"));
+        sender.sendChatToPlayer(ChatMessageComponent.createFromText("/netmusic status"));
+        sender.sendChatToPlayer(ChatMessageComponent.createFromText("/netmusic clearpending"));
+    }
+
+    private static void applySongForSource(ServerPlayer player, ICommandSender sender, ItemMusicCD.SongInfo songInfo,
+                                           PendingSongTracker.Source source, String needInteractionKey, String successKey) {
+        if (setSongToOpenMenu(player, songInfo) || writeSongWithSourceInteractionCheck(player, songInfo, source)) {
+            PendingSongTracker.clear(player);
+            sender.sendChatToPlayer(ChatMessageComponent.createFromText(StatCollector.translateToLocal(successKey)));
+            return;
+        }
+
+        long now = player.worldObj == null ? 0L : player.worldObj.getTotalWorldTime();
+        PendingSongTracker.setPending(player, source, songInfo, now);
+        sender.sendChatToPlayer(ChatMessageComponent.createFromText(
+                StatCollector.translateToLocalFormatted("command.netmusic.music_cd.pending.saved",
+                        StatCollector.translateToLocal(source == PendingSongTracker.Source.CD_BURNER
+                                ? "command.netmusic.source.cd_burner"
+                                : "command.netmusic.source.computer"),
+                        songInfo.songName == null ? "unknown" : songInfo.songName)));
+        sender.sendChatToPlayer(ChatMessageComponent.createFromText(StatCollector.translateToLocal(needInteractionKey)));
     }
 
     private static String joinName(String[] args, int start) {
@@ -269,73 +293,21 @@ public class NetMusicCommand extends CommandBase {
     }
 
     private static boolean writeSongToInventoryCd(ServerPlayer player, ItemMusicCD.SongInfo songInfo) {
-        if (player == null || songInfo == null || InitItems.MUSIC_CD == null) {
+        if (player == null || songInfo == null) {
             return false;
         }
-
-        int slot = findWritableMusicCdSlot(player);
-        if (slot < 0) {
-            return false;
-        }
-
-        ItemMusicCD.SongInfo existing = ItemMusicCD.getSongInfo(player.inventory.mainInventory[slot]);
-        if (existing != null && existing.readOnly) {
-            return false;
-        }
-
-        if (player.inventory.mainInventory[slot].stackSize <= 1) {
-            ItemMusicCD.setSongInfo(songInfo, player.inventory.mainInventory[slot]);
-            player.inventory.onInventoryChanged();
-            return true;
-        }
-
-        ItemStack singleCd = player.inventory.mainInventory[slot].copy();
-        singleCd.stackSize = 1;
-        ItemMusicCD.setSongInfo(songInfo, singleCd);
-
-        player.inventory.mainInventory[slot].stackSize -= 1;
-        if (player.inventory.mainInventory[slot].stackSize <= 0) {
-            player.inventory.mainInventory[slot] = null;
-        }
-
-        if (!player.inventory.addItemStackToInventory(singleCd)) {
-            player.dropPlayerItem(singleCd);
-        }
-        player.inventory.onInventoryChanged();
-        return true;
+        return MusicCdWriteHelper.writeSongToPlayerCd(player, songInfo);
     }
 
-    private static boolean writeSongWithInteractionCheck(ServerPlayer player, ItemMusicCD.SongInfo songInfo) {
+    private static boolean writeSongWithSourceInteractionCheck(ServerPlayer player, ItemMusicCD.SongInfo songInfo,
+                                                               PendingSongTracker.Source source) {
         long now = player.worldObj == null ? 0L : player.worldObj.getTotalWorldTime();
-        if (!PlayerInteractionTracker.hasRecentCdWriterInteraction(player, now, INTERACTION_WINDOW_TICKS)) {
+        boolean hasInteraction = source == PendingSongTracker.Source.CD_BURNER
+                ? PlayerInteractionTracker.hasRecentCDBurnerInteraction(player, now, INTERACTION_WINDOW_TICKS)
+                : PlayerInteractionTracker.hasRecentComputerInteraction(player, now, INTERACTION_WINDOW_TICKS);
+        if (!hasInteraction) {
             return false;
         }
         return writeSongToInventoryCd(player, songInfo);
-    }
-
-    private static int findWritableMusicCdSlot(ServerPlayer player) {
-        int current = player.inventory.currentItem;
-        if (current >= 0 && current < player.inventory.mainInventory.length) {
-            ItemStack held = player.inventory.mainInventory[current];
-            if (isWritableCd(held)) {
-                return current;
-            }
-        }
-
-        for (int i = 0; i < player.inventory.mainInventory.length; i++) {
-            ItemStack stack = player.inventory.mainInventory[i];
-            if (isWritableCd(stack)) {
-                return i;
-            }
-        }
-        return -1;
-    }
-
-    private static boolean isWritableCd(ItemStack stack) {
-        if (stack == null || InitItems.MUSIC_CD == null || stack.itemID != InitItems.MUSIC_CD.itemID) {
-            return false;
-        }
-        ItemMusicCD.SongInfo existing = ItemMusicCD.getSongInfo(stack);
-        return existing == null || !existing.readOnly;
     }
 }

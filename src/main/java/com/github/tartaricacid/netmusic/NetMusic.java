@@ -3,7 +3,9 @@ package com.github.tartaricacid.netmusic;
 import com.github.tartaricacid.netmusic.api.NetEaseMusic;
 import com.github.tartaricacid.netmusic.api.WebApi;
 import com.github.tartaricacid.netmusic.init.CommandRegistry;
+import com.github.tartaricacid.netmusic.init.InitContainer;
 import com.github.tartaricacid.netmusic.init.InitEvents;
+import com.github.tartaricacid.netmusic.init.InitSounds;
 import com.github.tartaricacid.netmusic.init.ServerReceiverRegistry;
 import net.fabricmc.api.ModInitializer;
 import net.xiaoyu233.fml.ModResourceManager;
@@ -23,6 +25,8 @@ public class NetMusic implements ModInitializer {
         NET_EASE_WEB_API = new NetEaseMusic().getApi();
 
         InitEvents.init();
+        InitContainer.init();
+        InitSounds.init();
         CommandRegistry.registryCommand();
         ServerReceiverRegistry.register();
 

@@ -10,17 +10,14 @@ import com.github.tartaricacid.netmusic.network.message.GetMusicListMessage;
 import com.github.tartaricacid.netmusic.util.MusicCdWriteHelper;
 import com.github.tartaricacid.netmusic.util.PendingSongTracker;
 import com.github.tartaricacid.netmusic.util.PlayerInteractionTracker;
+import com.github.tartaricacid.netmusic.util.ComputerInputParser;
+import com.github.tartaricacid.netmusic.util.ScreenSubmitResult;
 import net.minecraft.ChatMessageComponent;
 import net.minecraft.CommandBase;
 import net.minecraft.ICommandSender;
 import net.minecraft.ServerPlayer;
 import net.minecraft.StatCollector;
 import net.minecraft.WrongUsageException;
-import org.apache.commons.lang3.StringUtils;
-
-import java.io.File;
-import java.net.MalformedURLException;
-import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -173,33 +170,17 @@ public class NetMusicCommand extends CommandBase {
             if (args.length < 4) {
                 throw new WrongUsageException("/netmusic addurlcd <url_or_path> <timeSecond> <name>");
             }
-            String url = normalizeUrl(args[1]);
-            if (url == null) {
-                sender.sendChatToPlayer(ChatMessageComponent.createFromText(
-                        StatCollector.translateToLocal("command.netmusic.music_cd.addurlcd.fail")));
-                return;
-            }
-
-            int time;
-            try {
-                time = Integer.parseInt(args[2]);
-                if (time <= 0) {
-                    throw new NumberFormatException();
+            ScreenSubmitResult result = ComputerInputParser.parseSongInfo(args[1], joinName(args, 3), args[2], false);
+            if (!result.isSuccess()) {
+                String key = result.getMessageKey();
+                if (key == null) {
+                    key = "command.netmusic.music_cd.addurlcd.fail";
                 }
-            } catch (NumberFormatException e) {
-                sender.sendChatToPlayer(ChatMessageComponent.createFromText(
-                        StatCollector.translateToLocal("command.netmusic.music_cd.time.fail")));
+                sender.sendChatToPlayer(ChatMessageComponent.createFromText(StatCollector.translateToLocal(key)));
                 return;
             }
 
-            String songName = joinName(args, 3);
-            if (StringUtils.isBlank(songName)) {
-                sender.sendChatToPlayer(ChatMessageComponent.createFromText(
-                        StatCollector.translateToLocal("command.netmusic.music_cd.name.fail")));
-                return;
-            }
-
-            ItemMusicCD.SongInfo songInfo = new ItemMusicCD.SongInfo(url, songName, time, false);
+            ItemMusicCD.SongInfo songInfo = result.getSongInfo();
             applySongForSource(player, sender, songInfo, PendingSongTracker.Source.COMPUTER,
                     "command.netmusic.music_cd.need_computer", "command.netmusic.music_cd.addurlcd.success");
             return;
@@ -307,26 +288,6 @@ public class NetMusicCommand extends CommandBase {
         return builder.toString().trim();
     }
 
-    private static String normalizeUrl(String input) {
-        if (StringUtils.isBlank(input)) {
-            return null;
-        }
-        String text = input.trim();
-        if (text.startsWith("http://") || text.startsWith("https://") || text.startsWith("file:/")) {
-            try {
-                new URL(text);
-                return text;
-            } catch (MalformedURLException e) {
-                return null;
-            }
-        }
-
-        File local = new File(text);
-        if (local.exists()) {
-            return local.toURI().toString();
-        }
-        return null;
-    }
 
     private static boolean setSongToOpenMenu(ServerPlayer player, ItemMusicCD.SongInfo songInfo) {
         if (player.openContainer instanceof CDBurnerMenu cdBurnerMenu) {

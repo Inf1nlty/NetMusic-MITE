@@ -76,6 +76,19 @@ public class CDBurnerMenu extends Container {
         }
     }
 
+    public boolean canWriteSong() {
+        ItemStack in = this.input.getStack();
+        if (in == null || this.output.getStack() != null) {
+            return false;
+        }
+        ItemMusicCD.SongInfo raw = ItemMusicCD.getSongInfo(in);
+        return raw == null || !raw.readOnly;
+    }
+
+    public ItemMusicCD.SongInfo getSongInfo() {
+        return this.songInfo;
+    }
+
     public Slot getInput() {
         return input;
     }

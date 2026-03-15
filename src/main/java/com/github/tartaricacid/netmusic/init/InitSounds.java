@@ -1,9 +1,22 @@
 package com.github.tartaricacid.netmusic.init;
 
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
+
 public class InitSounds {
     public static final String NET_MUSIC = "netmusic.net_music";
+    private static final Set<String> REGISTERED = new HashSet<String>();
 
     public static void init() {
-        // Low-version sound registration will be wired to MITE sound APIs later.
+        REGISTERED.add(NET_MUSIC);
+    }
+
+    public static boolean isRegistered(String soundId) {
+        return REGISTERED.contains(soundId);
+    }
+
+    public static Set<String> getRegistered() {
+        return Collections.unmodifiableSet(REGISTERED);
     }
 }

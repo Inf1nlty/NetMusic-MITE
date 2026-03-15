@@ -4,6 +4,7 @@ import com.github.tartaricacid.netmusic.api.pojo.NetEaseMusicList;
 import com.github.tartaricacid.netmusic.api.pojo.NetEaseMusicSong;
 import com.google.common.collect.Lists;
 import com.google.gson.annotations.SerializedName;
+import net.minecraft.CreativeTabs;
 import net.minecraft.EntityPlayer;
 import net.minecraft.EnumChatFormatting;
 import net.minecraft.Item;
@@ -25,6 +26,7 @@ public class ItemMusicCD extends Item {
     public ItemMusicCD() {
         super(IdUtil.getNextItemID(), "music_cd");
         this.setUnlocalizedName("netmusic.music_cd");
+        this.setCreativeTab(CreativeTabs.tabMisc);
     }
 
     public static SongInfo getSongInfo(ItemStack stack) {

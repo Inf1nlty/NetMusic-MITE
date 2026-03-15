@@ -1,9 +1,12 @@
 package com.github.tartaricacid.netmusic.network.message;
 
 import com.github.tartaricacid.netmusic.NetMusic;
+import com.github.tartaricacid.netmusic.api.lyric.LyricParser;
+import com.github.tartaricacid.netmusic.api.lyric.LyricRecord;
 import com.github.tartaricacid.netmusic.client.audio.ClientMusicPlayer;
-import com.github.tartaricacid.netmusic.client.audio.NetMusicSound;
 import com.github.tartaricacid.netmusic.client.audio.MusicPlayManager;
+import com.github.tartaricacid.netmusic.client.audio.NetMusicSound;
+import com.github.tartaricacid.netmusic.config.GeneralConfig;
 import com.github.tartaricacid.netmusic.tileentity.TileEntityMusicPlayer;
 import moddedmite.rustedironcore.network.PacketByteBuf;
 import net.minecraft.EntityPlayer;
@@ -11,8 +14,14 @@ import net.minecraft.ResourceLocation;
 import net.minecraft.TileEntity;
 import org.apache.commons.lang3.StringUtils;
 
+import java.io.IOException;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 public class MusicToClientMessage implements Message {
     public static final ResourceLocation ID = new ResourceLocation(NetMusic.MOD_ID, "play_music");
+    private static final String MUSIC_163_URL = "https://music.163.com/";
+    private static final Pattern MUSIC_163_ID_PATTERN = Pattern.compile("^.*?[?&]id=(\\d+)\\.mp3$");
 
     public final int x;
     public final int y;
@@ -56,10 +65,12 @@ public class MusicToClientMessage implements Message {
         }
 
         TileEntity tile = entityPlayer.worldObj.getBlockTileEntity(this.x, this.y, this.z);
-        if (tile instanceof TileEntityMusicPlayer playerTile) {
+        TileEntityMusicPlayer playerTile = tile instanceof TileEntityMusicPlayer ? (TileEntityMusicPlayer) tile : null;
+        if (playerTile != null) {
             if (StringUtils.isBlank(this.url)) {
                 playerTile.setPlay(false);
                 playerTile.setCurrentTime(0);
+                playerTile.lyricRecord = null;
             } else {
                 playerTile.setPlay(true);
                 playerTile.setCurrentTime(this.timeSecond * 20 + 64);
@@ -71,8 +82,27 @@ public class MusicToClientMessage implements Message {
             return;
         }
 
+        LyricRecord lyricRecord = null;
+        if (GeneralConfig.ENABLE_PLAYER_LYRICS && this.url.startsWith(MUSIC_163_URL)) {
+            Matcher matcher = MUSIC_163_ID_PATTERN.matcher(this.url);
+            if (matcher.find()) {
+                try {
+                    long musicId = Long.parseLong(matcher.group(1));
+                    String lyricJson = NetMusic.NET_EASE_WEB_API.lyric(musicId);
+                    lyricRecord = LyricParser.parseLyric(lyricJson, this.songName);
+                } catch (NumberFormatException | IOException e) {
+                    NetMusic.LOGGER.warn("Failed to load lyric for {}", this.url, e);
+                }
+            }
+        }
+
+        if (playerTile != null) {
+            playerTile.lyricRecord = lyricRecord;
+        }
+
+        LyricRecord finalLyricRecord = lyricRecord;
         MusicPlayManager.play(this.url, this.songName, resolved -> {
-            ClientMusicPlayer.play(new NetMusicSound(this.x, this.y, this.z, resolved, this.timeSecond, null));
+            ClientMusicPlayer.play(new NetMusicSound(this.x, this.y, this.z, resolved, this.timeSecond, finalLyricRecord));
             return null;
         });
     }

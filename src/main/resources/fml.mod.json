@@ -3,6 +3,11 @@
   "id": "netmusic",
   "version": "${version}",
   "name": "Net Music Mod",
+  "depends": {
+    "fishmodloader": ">=3.4.2",
+    "rusted_iron_core": ">=1.5.0",
+    "many-lib": ">=2.3.0"
+  },
   "description": "A music player mod",
   "authors": [
     "IMG",
@@ -25,15 +30,7 @@
     ],
     "client": [
       "com.github.tartaricacid.netmusic.client.NetMusicClient"
-    ],
-    "modmenu": [
-      "com.github.tartaricacid.netmusic.compat.modmenu.ModMenuApiImpl"
     ]
-  },
-  "depends": {
-    "fabricloader": ">=0.15.0",
-    "minecraft": "1.6.4-MITE",
-    "java": ">=17"
   },
   "accessWidener" : "netmusic.accesswidener"
 }

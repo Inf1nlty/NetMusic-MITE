@@ -16,6 +16,7 @@ public final class ClientMusicPlayer {
     private static NetMusicSound currentSound;
     private static Thread playThread;
     private static volatile boolean stopRequested;
+    private static volatile int playSession;
 
     private ClientMusicPlayer() {
     }
@@ -28,7 +29,8 @@ public final class ClientMusicPlayer {
             stopInternal();
             currentSound = sound;
             stopRequested = false;
-            playThread = new Thread(() -> stream(sound), "NetMusic-Player");
+            int session = ++playSession;
+            playThread = new Thread(() -> stream(sound, session), "NetMusic-Player");
             playThread.setDaemon(true);
             playThread.start();
         }
@@ -49,7 +51,7 @@ public final class ClientMusicPlayer {
         currentSound = null;
     }
 
-    private static void stream(NetMusicSound sound) {
+    private static void stream(NetMusicSound sound, int session) {
         long timeoutAt = System.currentTimeMillis() + Math.max(sound.getTimeSecond(), 1) * 1000L + 3000L;
         try (InputStream remote = new MusicBufferedInputStream(new ChunkedAudioStream(sound.getSongUrl(), NetWorker.getProxyFromConfig()));
              AudioInputStream compressed = AudioSystem.getAudioInputStream(remote)) {
@@ -65,7 +67,7 @@ public final class ClientMusicPlayer {
                     line.start();
                     byte[] buffer = new byte[8192];
                     int read;
-                    while (!stopRequested && !Thread.currentThread().isInterrupted()
+                    while (session == playSession && !stopRequested && !Thread.currentThread().isInterrupted()
                             && System.currentTimeMillis() < timeoutAt
                             && (read = pcm.read(buffer, 0, buffer.length)) != -1) {
                         line.write(buffer, 0, read);
@@ -79,7 +81,7 @@ public final class ClientMusicPlayer {
             }
         } finally {
             synchronized (LOCK) {
-                if (currentSound == sound) {
+                if (currentSound == sound && session == playSession) {
                     currentSound = null;
                     playThread = null;
                 }

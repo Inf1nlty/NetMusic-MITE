@@ -46,6 +46,31 @@ public final class MusicCdWriteHelper {
         return true;
     }
 
+    public static ItemStack createMusicCdFromSong(ItemMusicCD.SongInfo songInfo) {
+        if (songInfo == null || InitItems.MUSIC_CD == null) {
+            return null;
+        }
+        ItemStack musicCd = new ItemStack(InitItems.MUSIC_CD, 1);
+        ItemMusicCD.setSongInfo(songInfo, musicCd);
+        return musicCd;
+    }
+
+    public static boolean giveSongCdToPlayer(EntityPlayer player, ItemMusicCD.SongInfo songInfo) {
+        if (player == null) {
+            return false;
+        }
+        ItemStack musicCd = createMusicCdFromSong(songInfo);
+        if (musicCd == null) {
+            return false;
+        }
+
+        if (!player.inventory.addItemStackToInventory(musicCd)) {
+            player.dropPlayerItem(musicCd);
+        }
+        player.inventory.onInventoryChanged();
+        return true;
+    }
+
     public static int findWritableMusicCdSlot(EntityPlayer player) {
         int current = player.inventory.currentItem;
         if (current >= 0 && current < player.inventory.mainInventory.length) {

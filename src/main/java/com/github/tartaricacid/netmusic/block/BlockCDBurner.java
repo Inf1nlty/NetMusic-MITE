@@ -1,5 +1,6 @@
 package com.github.tartaricacid.netmusic.block;
 
+import com.github.tartaricacid.netmusic.util.PlayerInteractionTracker;
 import net.minecraft.*;
 import net.xiaoyu233.fml.reload.utils.IdUtil;
 
@@ -41,6 +42,7 @@ public class BlockCDBurner extends BlockDirectional {
     @Override
     public boolean onBlockActivated(World world, int x, int y, int z, EntityPlayer player, EnumFace face, float offsetX, float offsetY, float offsetZ) {
         if (player.onServer()) {
+            PlayerInteractionTracker.markCdBurner(player, world.getTotalWorldTime());
             // Temporary compatibility bridge: keeps right-click interaction alive until custom Container migration is finished.
             player.displayGUIWorkbench(x, y, z);
         }

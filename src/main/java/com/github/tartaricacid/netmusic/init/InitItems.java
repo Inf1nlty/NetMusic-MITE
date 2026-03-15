@@ -3,14 +3,12 @@ package com.github.tartaricacid.netmusic.init;
 import com.github.tartaricacid.netmusic.item.ItemMusicCD;
 import net.minecraft.Item;
 import net.xiaoyu233.fml.reload.event.ItemRegistryEvent;
-import net.xiaoyu233.fml.reload.utils.IdUtil;
 
 public class InitItems {
     public static Item MUSIC_CD;
     public static Item MUSIC_PLAYER;
     public static Item CD_BURNER;
     public static Item COMPUTER;
-    public static Item MUSIC_PLAYER_BACKPACK;
 
     public static void registerItems(ItemRegistryEvent event) {
         MUSIC_CD = new ItemMusicCD();
@@ -25,9 +23,6 @@ public class InitItems {
         event.registerItemBlock("Net Music Mod", "netmusic:computer", "computer", InitBlocks.COMPUTER);
         COMPUTER = Item.itemsList[InitBlocks.COMPUTER.blockID];
 
-        MUSIC_PLAYER_BACKPACK = new Item(IdUtil.getNextItemID(), "music_player_backpack") {
-        }.setUnlocalizedName("netmusic.music_player_backpack");
-        event.register("Net Music Mod", "netmusic:music_player_backpack", "music_player_backpack", MUSIC_PLAYER_BACKPACK);
     }
 
     public static void init() {

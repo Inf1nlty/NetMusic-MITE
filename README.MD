@@ -20,3 +20,4 @@ Expected right now: compile errors in unported classes.
 
 - This project is no longer the AnimalRefresh example.
 - Porting work should focus on replacing modern 1.20-style APIs with MITE 1.6.4/FML-compatible APIs module by module.
+- MITE 1.6.4 localization uses `assets/netmusic/lang/*.lang` (`en_US.lang`, `zh_CN.lang`), not modern JSON language files.

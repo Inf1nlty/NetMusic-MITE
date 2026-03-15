@@ -1,17 +1,16 @@
 package com.github.tartaricacid.netmusic.init;
 
-import com.github.tartaricacid.netmusic.compat.tlm.init.CompatRegistry;
 import com.github.tartaricacid.netmusic.network.message.SetMusicIDMessage;
-import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
-import net.minecraft.resources.ResourceLocation;
+import moddedmite.rustedironcore.network.PacketReader;
+import moddedmite.rustedironcore.network.PacketSupplier;
+import net.minecraft.ResourceLocation;
 
 public class ServerReceiverRegistry {
     public static void register() {
-        registerReceiver(SetMusicIDMessage.ID, SetMusicIDMessage::handle);
-        CompatRegistry.registerServerReceiver();
+        registerReceiver(SetMusicIDMessage.ID, SetMusicIDMessage::new);
     }
 
-    public static void registerReceiver(ResourceLocation channelName, ServerPlayNetworking.PlayChannelHandler channelHandler) {
-        ServerPlayNetworking.registerGlobalReceiver(channelName, channelHandler);
+    public static void registerReceiver(ResourceLocation channelName, PacketSupplier packetSupplier) {
+        PacketReader.registerServerPacketReader(channelName, packetSupplier);
     }
 }

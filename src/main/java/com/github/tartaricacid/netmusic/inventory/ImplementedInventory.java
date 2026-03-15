@@ -14,7 +14,6 @@ public interface ImplementedInventory extends IInventory {
         return getItems().size();
     }
 
-    @Override
     default boolean isEmpty() {
         for (int i = 0; i < getSizeInventory(); i++) {
             if (getStackInSlot(i) != null) {

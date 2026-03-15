@@ -3,6 +3,8 @@ package com.github.tartaricacid.netmusic.tileentity;
 import com.github.tartaricacid.netmusic.api.lyric.LyricRecord;
 import com.github.tartaricacid.netmusic.block.BlockMusicPlayer;
 import com.github.tartaricacid.netmusic.item.ItemMusicCD;
+import com.github.tartaricacid.netmusic.network.NetworkHandler;
+import com.github.tartaricacid.netmusic.network.message.MusicToClientMessage;
 import net.minecraft.ItemStack;
 import net.minecraft.NBTTagCompound;
 import net.minecraft.TileEntity;
@@ -87,13 +89,21 @@ public class TileEntityMusicPlayer extends TileEntity {
     }
 
     public void setPlay(boolean play) {
+        if (this.isPlay && !play && this.worldObj != null && !this.worldObj.isRemote) {
+            NetworkHandler.sendToNearBy(this.worldObj, this.xCoord, this.yCoord, this.zCoord,
+                    new MusicToClientMessage(this.xCoord, this.yCoord, this.zCoord, "", 0, ""));
+        }
         isPlay = play;
     }
 
     public void setPlayToClient(ItemMusicCD.SongInfo info) {
         this.setCurrentTime(info.songTime * 20 + 64);
         this.isPlay = true;
-        // Legacy migration note: network broadcast is reconnected when packet layer is ported to FML3.4.2 APIs.
+        if (this.worldObj != null && !this.worldObj.isRemote && info != null) {
+            NetworkHandler.sendToNearBy(this.worldObj, this.xCoord, this.yCoord, this.zCoord,
+                    new MusicToClientMessage(this.xCoord, this.yCoord, this.zCoord,
+                            info.songUrl, info.songTime, info.songName));
+        }
     }
 
     public void setChanged() {

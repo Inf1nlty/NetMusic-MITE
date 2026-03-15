@@ -79,6 +79,15 @@ java {
     targetCompatibility = JavaVersion.VERSION_17
 }
 
+sourceSets {
+    main {
+        java {
+            // TLM integration is removed for this low-version migration target.
+            exclude 'com/github/tartaricacid/netmusic/compat/tlm/**'
+        }
+    }
+}
+
 jar {
 }
 

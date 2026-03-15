@@ -1,27 +1,35 @@
 package com.github.tartaricacid.netmusic.network;
 
-import com.github.tartaricacid.netmusic.network.message.Message;
-import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
-import net.minecraft.core.BlockPos;
-import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.server.level.ServerLevel;
-import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.level.ChunkPos;
-import net.minecraft.world.level.Level;
+import moddedmite.rustedironcore.network.Network;
+import moddedmite.rustedironcore.network.Packet;
+import net.minecraft.EntityPlayer;
+import net.minecraft.ServerPlayer;
+import net.minecraft.World;
 
 public class NetworkHandler {
-    public static void sendToNearBy(Level world, BlockPos pos, Message message) {
-        if (world instanceof ServerLevel) {
-            ServerLevel serverWorld = (ServerLevel) world;
-
-            FriendlyByteBuf buffer = message.toBuffer();
-            serverWorld.getChunkSource().chunkMap.getPlayers(new ChunkPos(pos), false).stream()
-                    .filter(p -> p.distanceToSqr(pos.getX(), pos.getY(), pos.getZ()) < 96 * 96)
-                    .forEach(p -> ServerPlayNetworking.send(p, message.getPacketId(), buffer));
+    public static void sendToNearBy(World world, int x, int y, int z, Packet packet) {
+        if (world == null || packet == null || world.playerEntities == null) {
+            return;
+        }
+        for (Object obj : world.playerEntities) {
+            if (!(obj instanceof ServerPlayer player)) {
+                continue;
+            }
+            if (player.getDistanceSq(x + 0.5D, y + 0.5D, z + 0.5D) <= 96.0D * 96.0D) {
+                Network.sendToClient(player, packet);
+            }
         }
     }
 
-    public static void sendToClientPlayer(Message message, ServerPlayer player) {
-        ServerPlayNetworking.send(player, message.getPacketId(), message.toBuffer());
+    public static void sendToNearBy(World world, EntityPlayer center, Packet packet) {
+        if (center != null) {
+            sendToNearBy(world, center.getBlockPosX(), center.getBlockPosY(), center.getBlockPosZ(), packet);
+        }
+    }
+
+    public static void sendToClientPlayer(Packet packet, ServerPlayer player) {
+        if (packet != null && player != null) {
+            Network.sendToClient(player, packet);
+        }
     }
 }

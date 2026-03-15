@@ -1,5 +1,6 @@
 package com.github.tartaricacid.netmusic.block;
 
+import com.github.tartaricacid.netmusic.util.PlayerInteractionTracker;
 import net.minecraft.*;
 import net.xiaoyu233.fml.reload.utils.IdUtil;
 
@@ -41,6 +42,7 @@ public class BlockComputer extends BlockDirectional {
     @Override
     public boolean onBlockActivated(World world, int x, int y, int z, EntityPlayer player, EnumFace face, float offsetX, float offsetY, float offsetZ) {
         if (player.onServer()) {
+            PlayerInteractionTracker.markComputer(player, world.getTotalWorldTime());
             // Temporary compatibility bridge: keep interaction alive until legacy custom container wiring is finished.
             player.displayGUIWorkbench(x, y, z);
         }

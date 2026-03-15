@@ -89,8 +89,9 @@ public class BlockMusicPlayer extends BlockDirectionalWithTileEntity {
     }
 
     @Override
-    public void onNeighborBlockChange(World world, int x, int y, int z, int neighborBlockId) {
+    public boolean onNeighborBlockChange(World world, int x, int y, int z, int neighborBlockId) {
         playMusic(world, x, y, z, world.isBlockIndirectlyGettingPowered(x, y, z));
+        return false;
     }
 
     private static void playMusic(World world, int x, int y, int z, boolean signal) {

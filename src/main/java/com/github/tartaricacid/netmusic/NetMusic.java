@@ -3,6 +3,8 @@ package com.github.tartaricacid.netmusic;
 import com.github.tartaricacid.netmusic.api.NetEaseMusic;
 import com.github.tartaricacid.netmusic.api.WebApi;
 import com.github.tartaricacid.netmusic.init.CommandRegistry;
+import com.github.tartaricacid.netmusic.init.InitEvents;
+import com.github.tartaricacid.netmusic.init.ServerReceiverRegistry;
 import net.fabricmc.api.ModInitializer;
 import net.xiaoyu233.fml.ModResourceManager;
 import net.xiaoyu233.fml.reload.event.MITEEvents;
@@ -20,7 +22,9 @@ public class NetMusic implements ModInitializer {
         ModResourceManager.addResourcePackDomain(MOD_ID);
         NET_EASE_WEB_API = new NetEaseMusic().getApi();
 
+        InitEvents.init();
         CommandRegistry.registryCommand();
+        ServerReceiverRegistry.register();
 
         MITEEvents.MITE_EVENT_BUS.register(new NetMusicFMLEvents());
     }

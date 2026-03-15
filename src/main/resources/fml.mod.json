@@ -28,9 +28,6 @@
     ],
     "modmenu": [
       "com.github.tartaricacid.netmusic.compat.modmenu.ModMenuApiImpl"
-    ],
-    "little_maid_extension": [
-      "com.github.tartaricacid.netmusic.compat.tlm.MaidPlugin"
     ]
   },
   "depends": {

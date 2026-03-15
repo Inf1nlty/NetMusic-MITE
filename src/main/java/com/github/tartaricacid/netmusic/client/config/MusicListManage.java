@@ -11,11 +11,6 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.gson.reflect.TypeToken;
-import net.fabricmc.fabric.api.resource.SimpleSynchronousResourceReloadListener;
-import net.minecraft.client.Minecraft;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.server.packs.resources.Resource;
-import net.minecraft.server.packs.resources.ResourceManager;
 import org.apache.commons.io.FileUtils;
 
 import java.io.File;
@@ -27,14 +22,16 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
-import java.util.Optional;
 
-public class MusicListManage implements SimpleSynchronousResourceReloadListener {
+public final class MusicListManage {
     private static final int MAX_NUM = 100;
     private static final Gson GSON = new Gson();
     private static final Path CONFIG_DIR = Paths.get("config").resolve("net_music");
     private static final Path CONFIG_FILE = CONFIG_DIR.resolve("music.json");
     public static List<ItemMusicCD.SongInfo> SONGS = Lists.newArrayList();
+
+    private MusicListManage() {
+    }
 
     public static void loadConfigSongs() throws IOException {
         if (!Files.isDirectory(CONFIG_DIR)) {
@@ -42,20 +39,18 @@ public class MusicListManage implements SimpleSynchronousResourceReloadListener 
         }
 
         File file = CONFIG_FILE.toFile();
-        InputStream stream = null;
-        if (Files.exists(CONFIG_FILE)) {
-            stream = Files.newInputStream(file.toPath());
-        } else {
-            ResourceLocation res = new ResourceLocation(NetMusic.MOD_ID, "music.json");
-            Optional<Resource> optional = Minecraft.getInstance().getResourceManager().getResource(res);
-            if (optional.isPresent()) {
-                stream = optional.get().open();
-            }
+        if (!Files.exists(CONFIG_FILE)) {
+            SONGS = Lists.newArrayList();
+            return;
         }
-        if (stream != null) {
+
+        try (InputStream stream = Files.newInputStream(file.toPath())) {
             SONGS = GSON.fromJson(new InputStreamReader(stream, StandardCharsets.UTF_8),
                     new TypeToken<List<ItemMusicCD.SongInfo>>() {
                     }.getType());
+        }
+        if (SONGS == null) {
+            SONGS = Lists.newArrayList();
         }
     }
 
@@ -108,19 +103,5 @@ public class MusicListManage implements SimpleSynchronousResourceReloadListener 
 
         Gson gson = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
         FileUtils.write(CONFIG_FILE.toFile(), gson.toJson(SONGS), StandardCharsets.UTF_8);
-    }
-
-    @Override
-    public ResourceLocation getFabricId() {
-        return new ResourceLocation(NetMusic.MOD_ID, "music_list");
-    }
-
-    @Override
-    public void onResourceManagerReload(ResourceManager resourceManager) {
-        try {
-            loadConfigSongs();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
     }
 }

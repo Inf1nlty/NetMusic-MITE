@@ -8,7 +8,7 @@ public class NetMusicCreativeTab extends GlacierCreativeTabs {
     public static final NetMusicCreativeTab TAB = new NetMusicCreativeTab();
 
     public NetMusicCreativeTab() {
-        super("NetMusic");
+        super("Net Music");
     }
 
     public int getTabIconItemIndex() {

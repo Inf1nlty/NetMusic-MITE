@@ -11,6 +11,8 @@ public class InitItems {
     public static Item COMPUTER;
 
     public static void registerItems(ItemRegistryEvent event) {
+        InitBlocks.init();
+
         MUSIC_CD = new ItemMusicCD();
         event.register("Net Music Mod", "netmusic:music_cd", "music_cd", MUSIC_CD);
 

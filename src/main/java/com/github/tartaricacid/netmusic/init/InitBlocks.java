@@ -13,10 +13,20 @@ public class InitBlocks {
     public static Block CD_BURNER;
     public static Block COMPUTER;
 
+    private static void ensureInitialized() {
+        if (MUSIC_PLAYER == null) {
+            MUSIC_PLAYER = new BlockMusicPlayer().setUnlocalizedName("netmusic:music_player");
+        }
+        if (CD_BURNER == null) {
+            CD_BURNER = new BlockCDBurner().setUnlocalizedName("netmusic:cd_burner");
+        }
+        if (COMPUTER == null) {
+            COMPUTER = new BlockComputer().setUnlocalizedName("netmusic:computer");
+        }
+    }
+
     public static void registerBlocks(BlockRegistryEvent event) {
-        MUSIC_PLAYER = new BlockMusicPlayer().setUnlocalizedName("netmusic.music_player");
-        CD_BURNER = new BlockCDBurner().setUnlocalizedName("netmusic.cd_burner");
-        COMPUTER = new BlockComputer().setUnlocalizedName("netmusic.computer");
+        ensureInitialized();
 
 
         Item.itemsList[MUSIC_PLAYER.blockID] = new ItemBlock(MUSIC_PLAYER);
@@ -30,5 +40,6 @@ public class InitBlocks {
     }
 
     public static void init() {
+        ensureInitialized();
     }
 }

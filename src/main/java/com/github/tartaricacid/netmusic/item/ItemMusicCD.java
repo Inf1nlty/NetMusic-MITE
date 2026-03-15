@@ -2,9 +2,9 @@ package com.github.tartaricacid.netmusic.item;
 
 import com.github.tartaricacid.netmusic.api.pojo.NetEaseMusicList;
 import com.github.tartaricacid.netmusic.api.pojo.NetEaseMusicSong;
+import com.github.tartaricacid.netmusic.creativetab.NetMusicCreativeTab;
 import com.google.common.collect.Lists;
 import com.google.gson.annotations.SerializedName;
-import net.minecraft.CreativeTabs;
 import net.minecraft.EntityPlayer;
 import net.minecraft.EnumChatFormatting;
 import net.minecraft.Item;
@@ -27,7 +27,7 @@ public class ItemMusicCD extends Item {
         super(IdUtil.getNextItemID(), "music_cd");
         this.setUnlocalizedName("netmusic:music_cd");
         this.setTextureName("netmusic:item/music_cd");
-        this.setCreativeTab(CreativeTabs.tabMisc);
+        this.setCreativeTab(NetMusicCreativeTab.TAB);
     }
 
     public static SongInfo getSongInfo(ItemStack stack) {

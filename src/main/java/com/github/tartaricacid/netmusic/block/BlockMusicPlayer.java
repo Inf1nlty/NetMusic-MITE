@@ -6,6 +6,7 @@ import net.minecraft.BlockBreakInfo;
 import net.minecraft.BlockConstants;
 import net.minecraft.BlockDirectionalWithTileEntity;
 import net.minecraft.Container;
+import net.minecraft.CreativeTabs;
 import net.minecraft.Entity;
 import net.minecraft.EntityPlayer;
 import net.minecraft.EnumDirection;
@@ -29,6 +30,8 @@ public class BlockMusicPlayer extends BlockDirectionalWithTileEntity {
         super(id, Material.wood, new BlockConstants());
         this.setHardness(0.5F);
         this.setStepSound(soundWoodFootstep);
+        this.setCreativeTab(CreativeTabs.tabDecorations);
+        this.setTextureName("netmusic:block/music_player");
         this.setBlockBoundsForAllThreads(0.125, 0.0, 0.125, 0.875, 0.375, 0.875);
     }
 

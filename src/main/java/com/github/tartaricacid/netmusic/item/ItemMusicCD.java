@@ -25,7 +25,8 @@ public class ItemMusicCD extends Item {
 
     public ItemMusicCD() {
         super(IdUtil.getNextItemID(), "music_cd");
-        this.setUnlocalizedName("netmusic.music_cd");
+        this.setUnlocalizedName("netmusic:music_cd");
+        this.setTextureName("netmusic:item/music_cd");
         this.setCreativeTab(CreativeTabs.tabMisc);
     }
 

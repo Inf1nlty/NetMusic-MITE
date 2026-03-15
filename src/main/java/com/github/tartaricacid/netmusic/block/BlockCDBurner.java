@@ -16,6 +16,8 @@ public class BlockCDBurner extends BlockDirectional {
         super(id, Material.wood, new BlockConstants());
         this.setHardness(0.5F);
         this.setStepSound(soundWoodFootstep);
+        this.setCreativeTab(CreativeTabs.tabDecorations);
+        this.setTextureName("netmusic:block/cd_burner");
         this.setBlockBoundsForAllThreads(0.0, 0.0, 0.0, 1.0, 0.5, 1.0);
     }
 

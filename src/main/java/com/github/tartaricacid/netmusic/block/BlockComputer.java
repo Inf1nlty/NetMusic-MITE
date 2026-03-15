@@ -16,6 +16,8 @@ public class BlockComputer extends BlockDirectional {
         super(id, Material.wood, new BlockConstants());
         this.setHardness(0.5F);
         this.setStepSound(soundWoodFootstep);
+        this.setCreativeTab(CreativeTabs.tabDecorations);
+        this.setTextureName("netmusic:block/computer");
         this.setBlockBoundsForAllThreads(0.0, 0.0, 0.0, 1.0, 1.0, 1.0);
     }
 

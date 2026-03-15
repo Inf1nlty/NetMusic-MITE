@@ -7,6 +7,7 @@ public class ItemSimpleNetMusic extends Item {
 
     public ItemSimpleNetMusic(String texture) {
         super(IdUtil.getNextItemID(), texture);
-        this.setUnlocalizedName("netmusic." + texture);
+        this.setUnlocalizedName("netmusic:" + texture);
+        this.setTextureName("netmusic:item/" + texture);
     }
 }

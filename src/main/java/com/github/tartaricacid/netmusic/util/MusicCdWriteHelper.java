@@ -4,13 +4,14 @@ import com.github.tartaricacid.netmusic.init.InitItems;
 import com.github.tartaricacid.netmusic.item.ItemMusicCD;
 import net.minecraft.EntityPlayer;
 import net.minecraft.ItemStack;
+import org.apache.commons.lang3.StringUtils;
 
 public final class MusicCdWriteHelper {
     private MusicCdWriteHelper() {
     }
 
     public static boolean writeSongToPlayerCd(EntityPlayer player, ItemMusicCD.SongInfo songInfo) {
-        if (player == null || songInfo == null || player.inventory == null || InitItems.MUSIC_CD == null) {
+        if (player == null || !isValidSong(songInfo) || player.inventory == null || InitItems.MUSIC_CD == null) {
             return false;
         }
 
@@ -47,7 +48,7 @@ public final class MusicCdWriteHelper {
     }
 
     public static ItemStack createMusicCdFromSong(ItemMusicCD.SongInfo songInfo) {
-        if (songInfo == null || InitItems.MUSIC_CD == null) {
+        if (!isValidSong(songInfo) || InitItems.MUSIC_CD == null) {
             return null;
         }
         ItemStack musicCd = new ItemStack(InitItems.MUSIC_CD, 1);
@@ -95,5 +96,12 @@ public final class MusicCdWriteHelper {
         }
         ItemMusicCD.SongInfo existing = ItemMusicCD.getSongInfo(stack);
         return existing == null || !existing.readOnly;
+    }
+
+    private static boolean isValidSong(ItemMusicCD.SongInfo songInfo) {
+        return songInfo != null
+                && StringUtils.isNotBlank(songInfo.songUrl)
+                && StringUtils.isNotBlank(songInfo.songName)
+                && songInfo.songTime > 0;
     }
 }

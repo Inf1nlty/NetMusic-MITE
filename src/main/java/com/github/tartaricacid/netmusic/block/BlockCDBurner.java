@@ -1,6 +1,7 @@
 package com.github.tartaricacid.netmusic.block;
 
 import com.github.tartaricacid.netmusic.creativetab.NetMusicCreativeTab;
+import com.github.tartaricacid.netmusic.inventory.CDBurnerMenu;
 import com.github.tartaricacid.netmusic.util.MusicCdWriteHelper;
 import com.github.tartaricacid.netmusic.util.PendingSongTracker;
 import com.github.tartaricacid.netmusic.util.PlayerInteractionTracker;
@@ -63,6 +64,17 @@ public class BlockCDBurner extends BlockDirectional {
                 player, PendingSongTracker.Source.CD_BURNER, world.getTotalWorldTime(), 20L * 120L);
         if (pending == null) {
             return false;
+        }
+
+        if (player.openContainer instanceof CDBurnerMenu menu) {
+            String failure = menu.tryWriteSong(pending.songInfo);
+            if (failure == null) {
+                PendingSongTracker.clear(player);
+                player.addChatMessage("message.netmusic.cd_burner.applied");
+            } else {
+                player.addChatMessage(failure);
+            }
+            return true;
         }
 
         if (!MusicCdWriteHelper.writeSongToPlayerCd(player, pending.songInfo)) {

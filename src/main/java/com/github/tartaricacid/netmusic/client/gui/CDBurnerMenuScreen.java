@@ -43,8 +43,9 @@ public class CDBurnerMenuScreen {
     }
 
     public boolean submitCraft() {
-        if (!this.menu.canWriteSong()) {
-            this.tipsKey = "gui.netmusic.cd_burner.cd_is_empty";
+        String writeFailure = this.menu.getWriteFailureKey();
+        if (writeFailure != null && !"gui.netmusic.cd_burner.get_info_error".equals(writeFailure)) {
+            this.tipsKey = writeFailure;
             return false;
         }
 
@@ -61,7 +62,7 @@ public class CDBurnerMenuScreen {
         }
 
         this.tipsKey = "";
-        ClientNetWorkHandler.sendToServer(new SetMusicIDMessage(songInfo));
+        ClientNetWorkHandler.sendToServer(new SetMusicIDMessage(SetMusicIDMessage.Source.CD_BURNER, songInfo));
         return true;
     }
 }

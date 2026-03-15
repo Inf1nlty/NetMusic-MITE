@@ -60,28 +60,47 @@ public class ComputerMenu extends Container {
 
     public void setSongInfo(ItemMusicCD.SongInfo setSongInfo) {
         this.songInfo = setSongInfo;
-        if (this.input.getStack() != null && this.output.getStack() == null) {
-            ItemStack itemStack = this.input.getStack().copy();
-            itemStack.stackSize = 1;
-            this.input.getStack().stackSize -= 1;
-            if (this.input.getStack().stackSize <= 0) {
-                this.input.putStack(null);
-            }
-            ItemMusicCD.SongInfo rawSongInfo = ItemMusicCD.getSongInfo(itemStack);
-            if (rawSongInfo == null || !rawSongInfo.readOnly) {
-                ItemMusicCD.setSongInfo(this.songInfo, itemStack);
-            }
-            this.output.putStack(itemStack);
+        this.tryWriteSong(setSongInfo);
+    }
+
+    public String tryWriteSong(ItemMusicCD.SongInfo setSongInfo) {
+        this.songInfo = setSongInfo;
+        String failure = this.getWriteFailureKey();
+        if (failure != null) {
+            return failure;
         }
+
+        ItemStack itemStack = this.input.getStack().copy();
+        itemStack.stackSize = 1;
+        this.input.getStack().stackSize -= 1;
+        if (this.input.getStack().stackSize <= 0) {
+            this.input.putStack(null);
+        }
+        ItemMusicCD.setSongInfo(setSongInfo, itemStack);
+        this.output.putStack(itemStack);
+        return null;
     }
 
     public boolean canWriteSong() {
+        return this.getWriteFailureKey() == null;
+    }
+
+    public String getWriteFailureKey() {
         ItemStack in = this.input.getStack();
-        if (in == null || this.output.getStack() != null) {
-            return false;
+        if (in == null) {
+            return "gui.netmusic.computer.cd_is_empty";
+        }
+        if (this.output.getStack() != null) {
+            return "gui.netmusic.computer.output_not_empty";
         }
         ItemMusicCD.SongInfo raw = ItemMusicCD.getSongInfo(in);
-        return raw == null || !raw.readOnly;
+        if (raw != null && raw.readOnly) {
+            return "gui.netmusic.computer.cd_read_only";
+        }
+        if (this.songInfo == null || this.songInfo.songTime <= 0) {
+            return "gui.netmusic.computer.url.error";
+        }
+        return null;
     }
 
     public ItemMusicCD.SongInfo getSongInfo() {

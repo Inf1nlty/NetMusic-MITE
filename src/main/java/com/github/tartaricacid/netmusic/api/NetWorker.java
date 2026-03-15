@@ -102,6 +102,15 @@ public class NetWorker {
         if (split.length != 2) {
             return Proxy.NO_PROXY;
         }
-        return new Proxy(proxyType, new InetSocketAddress(split[0], Integer.parseInt(split[1])));
+        int port;
+        try {
+            port = Integer.parseInt(split[1]);
+        } catch (NumberFormatException e) {
+            return Proxy.NO_PROXY;
+        }
+        if (port <= 0 || port > 65535) {
+            return Proxy.NO_PROXY;
+        }
+        return new Proxy(proxyType, new InetSocketAddress(split[0], port));
     }
 }

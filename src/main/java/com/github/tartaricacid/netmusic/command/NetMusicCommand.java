@@ -2,6 +2,8 @@ package com.github.tartaricacid.netmusic.command;
 
 import com.github.tartaricacid.netmusic.NetMusic;
 import com.github.tartaricacid.netmusic.client.config.MusicListManage;
+import com.github.tartaricacid.netmusic.config.GeneralConfig;
+import com.github.tartaricacid.netmusic.event.ConfigEvent;
 import com.github.tartaricacid.netmusic.inventory.CDBurnerMenu;
 import com.github.tartaricacid.netmusic.inventory.ComputerMenu;
 import com.github.tartaricacid.netmusic.item.ItemMusicCD;
@@ -63,9 +65,13 @@ public class NetMusicCommand extends CommandBase {
 
         String sub = args[0];
         if ("reload".equalsIgnoreCase(sub)) {
+            GeneralConfig.reload();
+            ConfigEvent.onConfigReloading();
             NetworkHandler.sendToClientPlayer(new GetMusicListMessage(GetMusicListMessage.RELOAD_MESSAGE), player);
             sender.sendChatToPlayer(ChatMessageComponent.createFromText(
                     StatCollector.translateToLocal("command.netmusic.music_cd.reload.success")));
+            sender.sendChatToPlayer(ChatMessageComponent.createFromText(
+                    StatCollector.translateToLocal("command.netmusic.config.reload.success")));
             return;
         }
 
@@ -172,10 +178,7 @@ public class NetMusicCommand extends CommandBase {
             }
             ScreenSubmitResult result = ComputerInputParser.parseSongInfo(args[1], joinName(args, 3), args[2], false);
             if (!result.isSuccess()) {
-                String key = result.getMessageKey();
-                if (key == null) {
-                    key = "command.netmusic.music_cd.addurlcd.fail";
-                }
+                String key = ScreenSubmitResult.mapGuiKeyToCommandKey(result.getMessageKey(), "command.netmusic.music_cd.addurlcd.fail");
                 sender.sendChatToPlayer(ChatMessageComponent.createFromText(StatCollector.translateToLocal(key)));
                 return;
             }
@@ -243,9 +246,13 @@ public class NetMusicCommand extends CommandBase {
             return;
         }
 
-        if (setSongToOpenMenu(player, songInfo) || writeSongWithSourceInteractionCheck(player, songInfo, source)) {
+        int openMenuResult = setSongToOpenMenu(player, sender, songInfo);
+        if (openMenuResult == 1 || writeSongWithSourceInteractionCheck(player, sender, songInfo, source)) {
             PendingSongTracker.clear(player);
             sender.sendChatToPlayer(ChatMessageComponent.createFromText(StatCollector.translateToLocal(successKey)));
+            return;
+        }
+        if (openMenuResult == -1) {
             return;
         }
 
@@ -289,16 +296,26 @@ public class NetMusicCommand extends CommandBase {
     }
 
 
-    private static boolean setSongToOpenMenu(ServerPlayer player, ItemMusicCD.SongInfo songInfo) {
+    private static int setSongToOpenMenu(ServerPlayer player, ICommandSender sender, ItemMusicCD.SongInfo songInfo) {
         if (player.openContainer instanceof CDBurnerMenu cdBurnerMenu) {
-            cdBurnerMenu.setSongInfo(songInfo);
-            return true;
+            String failure = cdBurnerMenu.tryWriteSong(songInfo);
+            if (failure == null) {
+                return 1;
+            }
+            sender.sendChatToPlayer(ChatMessageComponent.createFromText(
+                    StatCollector.translateToLocal(ScreenSubmitResult.mapGuiKeyToCommandKey(failure, "command.netmusic.music_cd.add163cd.fail"))));
+            return -1;
         }
         if (player.openContainer instanceof ComputerMenu computerMenu) {
-            computerMenu.setSongInfo(songInfo);
-            return true;
+            String failure = computerMenu.tryWriteSong(songInfo);
+            if (failure == null) {
+                return 1;
+            }
+            sender.sendChatToPlayer(ChatMessageComponent.createFromText(
+                    StatCollector.translateToLocal(ScreenSubmitResult.mapGuiKeyToCommandKey(failure, "command.netmusic.music_cd.addurlcd.fail"))));
+            return -1;
         }
-        return false;
+        return 0;
     }
 
     private static boolean writeSongToInventoryCd(ServerPlayer player, ItemMusicCD.SongInfo songInfo) {
@@ -308,7 +325,7 @@ public class NetMusicCommand extends CommandBase {
         return MusicCdWriteHelper.writeSongToPlayerCd(player, songInfo);
     }
 
-    private static boolean writeSongWithSourceInteractionCheck(ServerPlayer player, ItemMusicCD.SongInfo songInfo,
+    private static boolean writeSongWithSourceInteractionCheck(ServerPlayer player, ICommandSender sender, ItemMusicCD.SongInfo songInfo,
                                                                PendingSongTracker.Source source) {
         long now = player.worldObj == null ? 0L : player.worldObj.getTotalWorldTime();
         boolean hasInteraction = source == PendingSongTracker.Source.CD_BURNER
@@ -317,6 +334,11 @@ public class NetMusicCommand extends CommandBase {
         if (!hasInteraction) {
             return false;
         }
-        return writeSongToInventoryCd(player, songInfo);
+        boolean result = writeSongToInventoryCd(player, songInfo);
+        if (!result) {
+            sender.sendChatToPlayer(ChatMessageComponent.createFromText(
+                    StatCollector.translateToLocal("command.netmusic.music_cd.need_writable_cd")));
+        }
+        return result;
     }
 }

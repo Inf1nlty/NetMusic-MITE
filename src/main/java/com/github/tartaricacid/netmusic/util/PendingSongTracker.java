@@ -18,7 +18,7 @@ public final class PendingSongTracker {
         if (player == null || source == null || songInfo == null) {
             return;
         }
-        PENDING.put(player.getEntityName(), new PendingSong(source, songInfo, worldTick));
+        PENDING.put(player.getEntityName(), new PendingSong(source, cloneSongInfo(songInfo), worldTick));
     }
 
     public static PendingSong getPending(EntityPlayer player, long worldTick, long maxAgeTicks) {
@@ -65,6 +65,21 @@ public final class PendingSongTracker {
             return "unknown";
         }
         return songName.trim();
+    }
+
+    private static ItemMusicCD.SongInfo cloneSongInfo(ItemMusicCD.SongInfo songInfo) {
+        ItemMusicCD.SongInfo copy = new ItemMusicCD.SongInfo();
+        copy.songUrl = songInfo.songUrl;
+        copy.songName = songInfo.songName;
+        copy.songTime = songInfo.songTime;
+        copy.transName = songInfo.transName;
+        copy.vip = songInfo.vip;
+        copy.readOnly = songInfo.readOnly;
+        copy.artists.clear();
+        if (songInfo.artists != null) {
+            copy.artists.addAll(songInfo.artists);
+        }
+        return copy;
     }
 
     private static void cleanup(long worldTick, long maxAgeTicks) {

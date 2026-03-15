@@ -39,14 +39,15 @@ public class ComputerMenuScreen {
     }
 
     public boolean submitCraft() {
-        if (!this.menu.canWriteSong()) {
-            this.tipsKey = "gui.netmusic.cd_burner.cd_is_empty";
+        String writeFailure = this.menu.getWriteFailureKey();
+        if (writeFailure != null && !"gui.netmusic.computer.url.error".equals(writeFailure)) {
+            this.tipsKey = writeFailure;
             return false;
         }
 
         ScreenSubmitResult result = ComputerInputParser.parseSongInfo(this.urlInput, this.nameInput, this.timeInput, this.readOnly);
         if (!result.isSuccess()) {
-            this.tipsKey = result.getMessageKey();
+            this.tipsKey = result.getMessageKey() == null ? "gui.netmusic.computer.url.error" : result.getMessageKey();
             return false;
         }
 
@@ -57,7 +58,7 @@ public class ComputerMenuScreen {
         }
 
         this.tipsKey = "";
-        ClientNetWorkHandler.sendToServer(new SetMusicIDMessage(songInfo));
+        ClientNetWorkHandler.sendToServer(new SetMusicIDMessage(SetMusicIDMessage.Source.COMPUTER, songInfo));
         return true;
     }
 }

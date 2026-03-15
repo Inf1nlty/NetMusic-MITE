@@ -11,6 +11,7 @@ import java.nio.file.Paths;
 import java.util.regex.Pattern;
 
 public final class ComputerInputParser {
+    private static final int MAX_SONG_TIME_SECONDS = 60 * 60 * 12;
     private static final Pattern URL_HTTP_REG = Pattern.compile("(http|ftp|https)://[\\w\\-_]+(\\.[\\w\\-_]+)+([\\w\\-.,@?^=%&:/~+#]*[\\w\\-@?^=%&/~+#])?");
     private static final Pattern URL_FILE_REG = Pattern.compile("^[a-zA-Z]:\\\\(?:[^\\\\/:*?\"<>|\\r\\n]+\\\\)*[^\\\\/:*?\"<>|\\r\\n]*$");
     private static final Pattern TIME_REG = Pattern.compile("^\\d+$");
@@ -37,7 +38,7 @@ public final class ComputerInputParser {
         int time;
         try {
             time = Integer.parseInt(timeText);
-            if (time <= 0) {
+            if (time <= 0 || time > MAX_SONG_TIME_SECONDS) {
                 return ScreenSubmitResult.fail("gui.netmusic.computer.time.not_number");
             }
         } catch (NumberFormatException e) {
@@ -46,6 +47,9 @@ public final class ComputerInputParser {
 
         String urlText = rawUrl.trim();
         if (URL_HTTP_REG.matcher(urlText).matches()) {
+            if (!isSupportedAudioPath(urlText)) {
+                return ScreenSubmitResult.fail("gui.netmusic.computer.url.not_supported");
+            }
             return ScreenSubmitResult.success(new ItemMusicCD.SongInfo(urlText, rawName.trim(), time, readOnly));
         }
 
@@ -53,6 +57,9 @@ public final class ComputerInputParser {
             File file = Paths.get(urlText).toFile();
             if (!file.isFile()) {
                 return ScreenSubmitResult.fail("gui.netmusic.computer.url.local_file_error");
+            }
+            if (!isSupportedAudioPath(file.getName())) {
+                return ScreenSubmitResult.fail("gui.netmusic.computer.url.not_supported");
             }
             try {
                 URL url = file.toURI().toURL();
@@ -64,5 +71,13 @@ public final class ComputerInputParser {
         }
 
         return ScreenSubmitResult.fail("gui.netmusic.computer.url.error");
+    }
+
+    private static boolean isSupportedAudioPath(String path) {
+        if (StringUtils.isBlank(path)) {
+            return false;
+        }
+        String lower = path.toLowerCase();
+        return lower.endsWith(".mp3") || lower.endsWith(".flac");
     }
 }

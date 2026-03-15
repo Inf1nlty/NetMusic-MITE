@@ -82,8 +82,7 @@ java {
 sourceSets {
     main {
         java {
-            // TLM integration is removed for this low-version migration target.
-            exclude 'com/github/tartaricacid/netmusic/compat/tlm/**'
+            // Compile all compatibility modules, including TLM.
         }
     }
 }

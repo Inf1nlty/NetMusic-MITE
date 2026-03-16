@@ -8,4 +8,3 @@ public class InitBlockEntity {
         event.register(TileEntityMusicPlayer.class, "NetMusicMusicPlayer");
     }
 }
-

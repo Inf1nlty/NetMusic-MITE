@@ -90,6 +90,11 @@ public class BlockCDBurner extends BlockDirectional {
     }
 
     @Override
+    public boolean isStandardFormCube(boolean[] is_standard_form_cube, int metadata) {
+        return false;
+    }
+
+    @Override
     public void setBlockBoundsBasedOnStateAndNeighbors(IBlockAccess blockAccess, int x, int y, int z) {
         this.setBlockBoundsForAllThreads(0.0, 0.0, 0.0, 1.0, 0.5, 1.0);
     }

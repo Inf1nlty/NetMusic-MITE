@@ -36,7 +36,7 @@ public class NetMusicConfigs extends SimpleConfigs {
     }
 
     private NetMusicConfigs() {
-        super("netmusic", HOTKEYS, VALUES);
+        super("NetMusic", HOTKEYS, VALUES);
         bindCallbacks();
     }
 
@@ -82,6 +82,3 @@ public class NetMusicConfigs extends SimpleConfigs {
         return value == null ? "" : value.trim();
     }
 }
-
-
-

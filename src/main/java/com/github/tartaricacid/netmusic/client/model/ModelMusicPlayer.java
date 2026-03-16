@@ -16,17 +16,24 @@ public final class ModelMusicPlayer {
             return CUBOIDS;
         }
 
-        // Geometry is reduced from resources/models/block/music_player.json for 1.6.4 RenderBlocks rendering.
-        add(0.01F, 0.01F, 0.01F, 15.99F, 7.99F, 15.99F);
-        add(0.01F, 8.01F, 0.01F, 15.99F, 26.99F, 15.99F);
-        add(0.01F, 27.01F, 3.01F, 15.99F, 30.99F, 15.99F);
-        add(3.01F, 8.01F, 9.99F, 12.99F, 17.99F, 10.01F);
-        add(2.76F, 17.01F, 9.01F, 13.24F, 18.99F, 10.99F);
-        add(2.01F, 8.01F, 1.74F, 5.99F, 14.99F, 1.76F);
+        // Base body.
+        add(1.5F, 0.0F, 1.5F, 14.5F, 5.5F, 14.5F);
+        add(1.0F, 5.5F, 1.0F, 15.0F, 7.0F, 15.0F);
 
-        // Speaker details on front side.
-        add(12.60F, 19.24F, 6.76F, 15.58F, 23.22F, 9.24F);
-        add(1.41F, 19.24F, 5.76F, 3.89F, 23.22F, 8.74F);
+        // Turntable platform and disc.
+        add(3.0F, 6.9F, 3.0F, 13.0F, 7.4F, 13.0F);
+        add(4.0F, 7.4F, 4.0F, 12.0F, 8.2F, 12.0F);
+        add(7.5F, 8.2F, 7.5F, 8.5F, 9.0F, 8.5F);
+
+        // Arm support and arm.
+        add(10.8F, 7.0F, 2.2F, 12.4F, 11.8F, 3.8F);
+        add(8.4F, 10.8F, 2.4F, 12.2F, 11.6F, 3.6F);
+        add(7.8F, 10.6F, 2.8F, 8.6F, 11.4F, 3.4F);
+
+        // Speaker horn cluster.
+        add(2.6F, 7.0F, 2.6F, 6.2F, 10.0F, 6.2F);
+        add(2.0F, 10.0F, 2.0F, 6.8F, 12.0F, 6.8F);
+        add(3.0F, 12.0F, 3.0F, 5.8F, 13.4F, 5.8F);
 
         return CUBOIDS;
     }

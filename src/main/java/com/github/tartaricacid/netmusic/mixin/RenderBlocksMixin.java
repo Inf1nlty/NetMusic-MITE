@@ -20,6 +20,15 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public abstract class RenderBlocksMixin {
     @Shadow public IBlockAccess blockAccess;
 
+    @Inject(method = "renderItemIn3d", at = @At("HEAD"), cancellable = true)
+    private static void netmusic$renderCustomBlockItemsIn3d(int renderType, CallbackInfoReturnable<Boolean> cir) {
+        if (renderType == RenderTypes.musicPlayerRenderType
+                || renderType == RenderTypes.cdBurnerRenderType
+                || renderType == RenderTypes.computerRenderType) {
+            cir.setReturnValue(Boolean.TRUE);
+        }
+    }
+
     @Inject(method = "renderBlockByRenderType", at = @At("HEAD"), cancellable = true)
     private void netmusic$renderMusicPlayerWorld(Block block, int x, int y, int z, CallbackInfoReturnable<Boolean> cir) {
         if (this.blockAccess == null || block.getRenderType() != RenderTypes.musicPlayerRenderType) {

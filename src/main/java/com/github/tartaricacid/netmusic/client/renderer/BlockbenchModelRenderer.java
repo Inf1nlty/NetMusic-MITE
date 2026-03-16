@@ -1,6 +1,7 @@
 package com.github.tartaricacid.netmusic.client.renderer;
 
 import net.minecraft.Tessellator;
+import org.lwjgl.opengl.GL11;
 
 final class BlockbenchModelRenderer {
     private BlockbenchModelRenderer() {
@@ -10,10 +11,50 @@ final class BlockbenchModelRenderer {
         if (model == null || model.elements.isEmpty()) {
             return;
         }
-        Tessellator t = Tessellator.instance;
-        t.startDrawingQuads();
+        boolean hasShaded = false;
+        boolean hasUnshaded = false;
         for (int i = 0; i < model.elements.size(); i++) {
             BlockbenchModel.Element e = model.elements.get(i);
+            if (e.shade) {
+                hasShaded = true;
+            } else {
+                hasUnshaded = true;
+            }
+            if (hasShaded && hasUnshaded) {
+                break;
+            }
+        }
+
+        if (hasShaded) {
+            renderPass(model, turnsClockwise, true);
+        }
+        if (hasUnshaded) {
+            boolean lightingEnabled = GL11.glIsEnabled(GL11.GL_LIGHTING);
+            if (lightingEnabled) {
+                GL11.glDisable(GL11.GL_LIGHTING);
+            }
+            try {
+                renderPass(model, turnsClockwise, false);
+            } finally {
+                if (lightingEnabled) {
+                    GL11.glEnable(GL11.GL_LIGHTING);
+                }
+            }
+        }
+    }
+
+    private static void renderPass(BlockbenchModel model, int turnsClockwise, boolean shadedElements) {
+        Tessellator t = Tessellator.instance;
+        boolean started = false;
+        for (int i = 0; i < model.elements.size(); i++) {
+            BlockbenchModel.Element e = model.elements.get(i);
+            if (e.shade != shadedElements) {
+                continue;
+            }
+            if (!started) {
+                t.startDrawingQuads();
+                started = true;
+            }
             renderFace(model, e, e.faces[0], 0, turnsClockwise, t);
             renderFace(model, e, e.faces[1], 1, turnsClockwise, t);
             renderFace(model, e, e.faces[2], 2, turnsClockwise, t);
@@ -21,7 +62,9 @@ final class BlockbenchModelRenderer {
             renderFace(model, e, e.faces[4], 4, turnsClockwise, t);
             renderFace(model, e, e.faces[5], 5, turnsClockwise, t);
         }
-        t.draw();
+        if (started) {
+            t.draw();
+        }
     }
 
     private static void renderFace(BlockbenchModel model, BlockbenchModel.Element e, BlockbenchModel.Face face,

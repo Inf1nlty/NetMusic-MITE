@@ -49,13 +49,14 @@ final class BlockbenchModel {
                     float[] to = readVec3(element.getAsJsonArray("to"));
                     Rotation rotation = readRotation(element.getAsJsonObject("rotation"));
                     Face[] faces = readFaces(element.getAsJsonObject("faces"));
+                    boolean shade = !element.has("shade") || element.get("shade").getAsBoolean();
                     float minX = Math.min(from[0], to[0]) / 16.0F;
                     float minY = Math.min(from[1], to[1]) / 16.0F;
                     float minZ = Math.min(from[2], to[2]) / 16.0F;
                     float maxX = Math.max(from[0], to[0]) / 16.0F;
                     float maxY = Math.max(from[1], to[1]) / 16.0F;
                     float maxZ = Math.max(from[2], to[2]) / 16.0F;
-                    elements.add(new Element(minX, minY, minZ, maxX, maxY, maxZ, rotation, faces));
+                    elements.add(new Element(minX, minY, minZ, maxX, maxY, maxZ, rotation, faces, shade));
                 }
             }
             return new BlockbenchModel(texture, texW, texH, elements);
@@ -124,8 +125,10 @@ final class BlockbenchModel {
         final float maxZ;
         final Rotation rotation;
         final Face[] faces;
+        final boolean shade;
 
-        Element(float minX, float minY, float minZ, float maxX, float maxY, float maxZ, Rotation rotation, Face[] faces) {
+        Element(float minX, float minY, float minZ, float maxX, float maxY, float maxZ,
+                Rotation rotation, Face[] faces, boolean shade) {
             this.minX = minX;
             this.minY = minY;
             this.minZ = minZ;
@@ -134,6 +137,7 @@ final class BlockbenchModel {
             this.maxZ = maxZ;
             this.rotation = rotation;
             this.faces = faces;
+            this.shade = shade;
         }
     }
 

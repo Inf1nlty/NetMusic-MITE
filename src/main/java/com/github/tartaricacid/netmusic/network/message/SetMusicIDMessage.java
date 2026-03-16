@@ -1,9 +1,10 @@
 package com.github.tartaricacid.netmusic.network.message;
 
 import com.github.tartaricacid.netmusic.NetMusic;
-import com.github.tartaricacid.netmusic.inventory.CDBurnerMenu;
-import com.github.tartaricacid.netmusic.inventory.ComputerMenu;
 import com.github.tartaricacid.netmusic.item.ItemMusicCD;
+import com.github.tartaricacid.netmusic.util.MenuSongWriter;
+import com.github.tartaricacid.netmusic.util.PendingSongTracker;
+import com.github.tartaricacid.netmusic.util.ScreenSubmitResult;
 import com.github.tartaricacid.netmusic.util.SongInfoHelper;
 import moddedmite.rustedironcore.network.PacketByteBuf;
 import net.minecraft.EntityPlayer;
@@ -52,22 +53,12 @@ public class SetMusicIDMessage implements Message {
         if (entityPlayer == null || this.song == null) {
             return;
         }
-        if (this.source == Source.CD_BURNER) {
-            if (entityPlayer.openContainer instanceof CDBurnerMenu menu) {
-                String failure = menu.tryWriteSong(SongInfoHelper.copy(this.song));
-                if (failure != null) {
-                    entityPlayer.addChatMessage(failure);
-                }
-            }
-            return;
-        }
-        if (this.source == Source.COMPUTER) {
-            if (entityPlayer.openContainer instanceof ComputerMenu menu) {
-                String failure = menu.tryWriteSong(SongInfoHelper.copy(this.song));
-                if (failure != null) {
-                    entityPlayer.addChatMessage(failure);
-                }
-            }
+        PendingSongTracker.Source trackerSource = this.source == Source.COMPUTER
+                ? PendingSongTracker.Source.COMPUTER
+                : PendingSongTracker.Source.CD_BURNER;
+        MenuSongWriter.WriteResult result = MenuSongWriter.tryWriteToSourceMenu(entityPlayer, trackerSource, SongInfoHelper.copy(this.song));
+        if (result.isFailure()) {
+            entityPlayer.addChatMessage(ScreenSubmitResult.resolveFeedbackKey(result.failureKey, "message.netmusic.music_cd.need_writable_cd"));
         }
     }
 

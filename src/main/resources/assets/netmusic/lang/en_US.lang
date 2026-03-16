@@ -49,6 +49,11 @@ command.netmusic.music_cd.status=Recent NetMusic interaction: %s
 command.netmusic.music_cd.pending.saved=Pending song saved (%s): %s
 command.netmusic.music_cd.pending.status=Pending song: %s
 command.netmusic.music_cd.pending.clear=Pending song queue cleared.
+command.netmusic.player_only=This command can only be used by players.
+command.netmusic.status.none=none
+command.netmusic.status.entry=%s @(%s,%s,%s) age=%st
+command.netmusic.pending.none=none
+command.netmusic.pending.entry=%s:%s age=%st
 command.netmusic.source.cd_burner=CD Burner
 command.netmusic.source.computer=Computer
 gui.netmusic.lyric.waiting=Waiting for lyrics...

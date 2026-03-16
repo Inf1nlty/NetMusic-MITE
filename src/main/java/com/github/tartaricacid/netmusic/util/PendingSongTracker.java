@@ -56,12 +56,19 @@ public final class PendingSongTracker {
     }
 
     public static String getPendingText(EntityPlayer player, long worldTick, long maxAgeTicks) {
-        PendingSong pending = getPending(player, worldTick, maxAgeTicks);
-        if (pending == null) {
+        PendingSongView view = getPendingView(player, worldTick, maxAgeTicks);
+        if (view == null) {
             return "none";
         }
-        long age = Math.max(0L, worldTick - pending.tick);
-        return pending.source.name().toLowerCase() + ":" + safeName(pending.songInfo.songName) + " age=" + age + "t";
+        return view.getSourceKey() + ":" + safeName(view.songName) + " age=" + view.ageTicks + "t";
+    }
+
+    public static PendingSongView getPendingView(EntityPlayer player, long worldTick, long maxAgeTicks) {
+        PendingSong pending = getPending(player, worldTick, maxAgeTicks);
+        if (pending == null) {
+            return null;
+        }
+        return new PendingSongView(pending.source, safeName(pending.songInfo.songName), Math.max(0L, worldTick - pending.tick));
     }
 
     private static String safeName(String songName) {
@@ -95,6 +102,22 @@ public final class PendingSongTracker {
             this.source = source;
             this.songInfo = songInfo;
             this.tick = tick;
+        }
+    }
+
+    public static final class PendingSongView {
+        public final Source source;
+        public final String songName;
+        public final long ageTicks;
+
+        private PendingSongView(Source source, String songName, long ageTicks) {
+            this.source = source;
+            this.songName = songName;
+            this.ageTicks = ageTicks;
+        }
+
+        public String getSourceKey() {
+            return source == Source.CD_BURNER ? "command.netmusic.source.cd_burner" : "command.netmusic.source.computer";
         }
     }
 }

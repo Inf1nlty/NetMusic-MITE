@@ -34,8 +34,16 @@ public final class ScreenSubmitResult {
     }
 
     public static String mapGuiKeyToCommandKey(String key, String fallback) {
+        return resolveFeedbackKey(key, fallback);
+    }
+
+    public static String resolveFeedbackKey(String key, String fallback) {
         if (key == null) {
             return fallback;
+        }
+        if (key.startsWith("command.netmusic.") || key.startsWith("gui.netmusic.") || key.startsWith("message.netmusic.")) {
+            // Already a localization key that the caller can display directly.
+            return key;
         }
         if ("gui.netmusic.computer.name.empty".equals(key)) {
             return "command.netmusic.music_cd.name.fail";

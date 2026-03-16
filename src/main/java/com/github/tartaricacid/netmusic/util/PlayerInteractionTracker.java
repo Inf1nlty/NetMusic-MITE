@@ -46,19 +46,23 @@ public final class PlayerInteractionTracker {
     }
 
     public static String getRecentInteractionText(EntityPlayer player, long worldTick, long maxAgeTicks) {
+        InteractionView view = getRecentInteractionView(player, worldTick, maxAgeTicks);
+        if (view == null) {
+            return "none";
+        }
+        return view.kind.name().toLowerCase() + " @(" + view.x + "," + view.y + "," + view.z + ") age=" + view.ageTicks + "t";
+    }
+
+    public static InteractionView getRecentInteractionView(EntityPlayer player, long worldTick, long maxAgeTicks) {
         cleanup(worldTick, maxAgeTicks);
         if (player == null || maxAgeTicks < 0) {
-            return "none";
+            return null;
         }
         Context context = LAST_CONTEXT.get(player.getEntityName());
-        if (context == null) {
-            return "none";
+        if (context == null || worldTick - context.tick > maxAgeTicks) {
+            return null;
         }
-        if (worldTick - context.tick > maxAgeTicks) {
-            return "none";
-        }
-        long age = Math.max(0L, worldTick - context.tick);
-        return context.kind.name().toLowerCase() + " @(" + context.x + "," + context.y + "," + context.z + ") age=" + age + "t";
+        return new InteractionView(context.kind, context.x, context.y, context.z, Math.max(0L, worldTick - context.tick));
     }
 
     private static boolean hasRecentInteraction(EntityPlayer player, long worldTick, long maxAgeTicks, Kind... allowed) {
@@ -115,6 +119,24 @@ public final class PlayerInteractionTracker {
             this.x = x;
             this.y = y;
             this.z = z;
+        }
+    }
+
+    public static final class InteractionView {
+        public final String kindKey;
+        public final int x;
+        public final int y;
+        public final int z;
+        public final long ageTicks;
+        private final Kind kind;
+
+        private InteractionView(Kind kind, int x, int y, int z, long ageTicks) {
+            this.kind = kind;
+            this.kindKey = kind == Kind.CD_BURNER ? "command.netmusic.source.cd_burner" : "command.netmusic.source.computer";
+            this.x = x;
+            this.y = y;
+            this.z = z;
+            this.ageTicks = ageTicks;
         }
     }
 }

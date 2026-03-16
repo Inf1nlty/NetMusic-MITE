@@ -5,7 +5,6 @@ import com.github.tartaricacid.netmusic.client.config.MusicListManage;
 import com.github.tartaricacid.netmusic.config.GeneralConfig;
 import com.github.tartaricacid.netmusic.event.ConfigEvent;
 import com.github.tartaricacid.netmusic.inventory.CDBurnerMenu;
-import com.github.tartaricacid.netmusic.inventory.ComputerMenu;
 import com.github.tartaricacid.netmusic.item.ItemMusicCD;
 import com.github.tartaricacid.netmusic.network.NetworkHandler;
 import com.github.tartaricacid.netmusic.network.message.GetMusicListMessage;
@@ -15,6 +14,7 @@ import com.github.tartaricacid.netmusic.util.PlayerInteractionTracker;
 import com.github.tartaricacid.netmusic.util.ComputerInputParser;
 import com.github.tartaricacid.netmusic.util.ScreenSubmitResult;
 import com.github.tartaricacid.netmusic.util.SongInfoHelper;
+import com.github.tartaricacid.netmusic.util.MenuSongWriter;
 import net.minecraft.ChatMessageComponent;
 import net.minecraft.CommandBase;
 import net.minecraft.ICommandSender;
@@ -36,7 +36,7 @@ public class NetMusicCommand extends CommandBase {
 
     @Override
     public List getCommandAliases() {
-        List<String> aliases = new ArrayList<String>();
+        List<String> aliases = new ArrayList<>();
         aliases.add("nm");
         return aliases;
     }
@@ -60,7 +60,8 @@ public class NetMusicCommand extends CommandBase {
 
         ServerPlayer player = sender instanceof ServerPlayer ? (ServerPlayer) sender : null;
         if (player == null) {
-            sender.sendChatToPlayer(ChatMessageComponent.createFromText("This command can only be used by players."));
+            sender.sendChatToPlayer(ChatMessageComponent.createFromText(
+                    StatCollector.translateToLocal("command.netmusic.player_only")));
             return;
         }
 
@@ -78,10 +79,19 @@ public class NetMusicCommand extends CommandBase {
 
         if ("status".equalsIgnoreCase(sub)) {
             long now = player.worldObj == null ? 0L : player.worldObj.getTotalWorldTime();
-            String status = PlayerInteractionTracker.getRecentInteractionText(player, now, INTERACTION_WINDOW_TICKS);
+            PlayerInteractionTracker.InteractionView statusView = PlayerInteractionTracker.getRecentInteractionView(player, now, INTERACTION_WINDOW_TICKS);
+            String status = statusView == null
+                    ? StatCollector.translateToLocal("command.netmusic.status.none")
+                    : StatCollector.translateToLocalFormatted("command.netmusic.status.entry",
+                    StatCollector.translateToLocal(statusView.kindKey),
+                    Integer.valueOf(statusView.x), Integer.valueOf(statusView.y), Integer.valueOf(statusView.z), Long.valueOf(statusView.ageTicks));
             sender.sendChatToPlayer(ChatMessageComponent.createFromText(
                     StatCollector.translateToLocalFormatted("command.netmusic.music_cd.status", status)));
-            String pending = PendingSongTracker.getPendingText(player, now, PENDING_WINDOW_TICKS);
+            PendingSongTracker.PendingSongView pendingView = PendingSongTracker.getPendingView(player, now, PENDING_WINDOW_TICKS);
+            String pending = pendingView == null
+                    ? StatCollector.translateToLocal("command.netmusic.pending.none")
+                    : StatCollector.translateToLocalFormatted("command.netmusic.pending.entry",
+                    StatCollector.translateToLocal(pendingView.getSourceKey()), pendingView.songName, Long.valueOf(pendingView.ageTicks));
             sender.sendChatToPlayer(ChatMessageComponent.createFromText(
                     StatCollector.translateToLocalFormatted("command.netmusic.music_cd.pending.status", pending)));
             return;
@@ -179,7 +189,7 @@ public class NetMusicCommand extends CommandBase {
             }
             ScreenSubmitResult result = ComputerInputParser.parseSongInfo(args[1], joinName(args, 3), args[2], false);
             if (!result.isSuccess()) {
-                String key = ScreenSubmitResult.mapGuiKeyToCommandKey(result.getMessageKey(), "command.netmusic.music_cd.addurlcd.fail");
+                String key = ScreenSubmitResult.resolveFeedbackKey(result.getMessageKey(), "command.netmusic.music_cd.addurlcd.fail");
                 sender.sendChatToPlayer(ChatMessageComponent.createFromText(StatCollector.translateToLocal(key)));
                 return;
             }
@@ -300,22 +310,16 @@ public class NetMusicCommand extends CommandBase {
 
 
     private static int setSongToOpenMenu(ServerPlayer player, ICommandSender sender, ItemMusicCD.SongInfo songInfo) {
-        if (player.openContainer instanceof CDBurnerMenu cdBurnerMenu) {
-            String failure = cdBurnerMenu.tryWriteSong(songInfo);
-            if (failure == null) {
-                return 1;
-            }
-            sender.sendChatToPlayer(ChatMessageComponent.createFromText(
-                    StatCollector.translateToLocal(ScreenSubmitResult.mapGuiKeyToCommandKey(failure, "command.netmusic.music_cd.add163cd.fail"))));
-            return -1;
+        MenuSongWriter.WriteResult result = MenuSongWriter.tryWriteToAnyOpenMenu(player, songInfo);
+        if (result.isSuccess()) {
+            return 1;
         }
-        if (player.openContainer instanceof ComputerMenu computerMenu) {
-            String failure = computerMenu.tryWriteSong(songInfo);
-            if (failure == null) {
-                return 1;
-            }
+        if (result.isFailure()) {
+            String fallback = player.openContainer instanceof CDBurnerMenu
+                    ? "command.netmusic.music_cd.add163cd.fail"
+                    : "command.netmusic.music_cd.addurlcd.fail";
             sender.sendChatToPlayer(ChatMessageComponent.createFromText(
-                    StatCollector.translateToLocal(ScreenSubmitResult.mapGuiKeyToCommandKey(failure, "command.netmusic.music_cd.addurlcd.fail"))));
+                    StatCollector.translateToLocal(ScreenSubmitResult.resolveFeedbackKey(result.failureKey, fallback))));
             return -1;
         }
         return 0;

@@ -1,7 +1,7 @@
 package com.github.tartaricacid.netmusic.block;
 
 import com.github.tartaricacid.netmusic.creativetab.NetMusicCreativeTab;
-import com.github.tartaricacid.netmusic.inventory.ComputerMenu;
+import com.github.tartaricacid.netmusic.util.MenuSongWriter;
 import com.github.tartaricacid.netmusic.util.MusicCdWriteHelper;
 import com.github.tartaricacid.netmusic.util.PendingSongTracker;
 import com.github.tartaricacid.netmusic.util.PlayerInteractionTracker;
@@ -64,14 +64,14 @@ public class BlockComputer extends BlockDirectional {
             return false;
         }
 
-        if (player.openContainer instanceof ComputerMenu menu) {
-            String failure = menu.tryWriteSong(pending.songInfo);
-            if (failure == null) {
-                PendingSongTracker.clear(player);
-                player.addChatMessage("message.netmusic.computer.applied");
-            } else {
-                player.addChatMessage(failure);
-            }
+        MenuSongWriter.WriteResult result = MenuSongWriter.tryWriteToSourceMenu(player, PendingSongTracker.Source.COMPUTER, pending.songInfo);
+        if (result.isSuccess()) {
+            PendingSongTracker.clear(player);
+            player.addChatMessage("message.netmusic.computer.applied");
+            return true;
+        }
+        if (result.isFailure()) {
+            player.addChatMessage(result.failureKey);
             return true;
         }
 

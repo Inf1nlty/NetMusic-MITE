@@ -2,6 +2,10 @@ package com.github.tartaricacid.netmusic.client.audio;
 
 import com.github.tartaricacid.netmusic.NetMusic;
 import com.github.tartaricacid.netmusic.api.NetWorker;
+import com.github.tartaricacid.netmusic.api.lyric.LyricRecord;
+import com.github.tartaricacid.netmusic.tileentity.TileEntityMusicPlayer;
+import net.minecraft.Minecraft;
+import net.minecraft.TileEntity;
 
 import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioInputStream;
@@ -9,6 +13,7 @@ import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.DataLine;
 import javax.sound.sampled.SourceDataLine;
 import java.io.InputStream;
+import java.util.Random;
 
 public final class ClientMusicPlayer {
     private static final Object LOCK = new Object();
@@ -17,6 +22,8 @@ public final class ClientMusicPlayer {
     private static Thread playThread;
     private static volatile boolean stopRequested;
     private static volatile int playSession;
+    private static int currentTick;
+    private static final Random RANDOM = new Random();
 
     private ClientMusicPlayer() {
     }
@@ -28,6 +35,7 @@ public final class ClientMusicPlayer {
         synchronized (LOCK) {
             stopInternal();
             currentSound = sound;
+            currentTick = 0;
             stopRequested = false;
             int session = ++playSession;
             playThread = new Thread(() -> stream(sound, session), "NetMusic-Player");
@@ -49,30 +57,109 @@ public final class ClientMusicPlayer {
             playThread = null;
         }
         currentSound = null;
+        currentTick = 0;
+    }
+
+    /**
+     * Runs on the client thread once per tick (hooked via {@link com.github.tartaricacid.netmusic.mixin.MinecraftMixin}).
+     * Keeps lyric progress, stop conditions, and client-side effects in sync with the original 1.20.1 behavior.
+     */
+    public static void clientTick() {
+        Minecraft mc = Minecraft.getMinecraft();
+        if (mc == null || mc.theWorld == null || mc.thePlayer == null) {
+            return;
+        }
+
+        NetMusicSound sound;
+        synchronized (LOCK) {
+            sound = currentSound;
+        }
+        if (sound == null) {
+            return;
+        }
+
+        // Stop if the player moved too far away (vanilla sound engine would attenuate/stop naturally).
+        double dx = mc.thePlayer.posX - (sound.getX() + 0.5D);
+        double dy = mc.thePlayer.posY - (sound.getY() + 0.5D);
+        double dz = mc.thePlayer.posZ - (sound.getZ() + 0.5D);
+        if (dx * dx + dy * dy + dz * dz > 96.0D * 96.0D) {
+            stopAndClearTile(mc, sound);
+            return;
+        }
+
+        currentTick++;
+
+        // Particle effects: spawn note particles periodically while playing.
+        if (mc.theWorld.getTotalWorldTime() % 8L == 0L) {
+            for (int i = 0; i < 2; i++) {
+                mc.theWorld.spawnParticle(net.minecraft.EnumParticle.note,
+                        sound.getX() + RANDOM.nextDouble(),
+                        sound.getY() + 1.0D + RANDOM.nextDouble(),
+                        sound.getZ() + RANDOM.nextDouble(),
+                        RANDOM.nextGaussian(), RANDOM.nextGaussian(), RANDOM.nextInt(3));
+            }
+        }
+
+        // Update lyric line based on current tick.
+        LyricRecord lyricRecord = sound.getLyricRecord();
+        if (lyricRecord != null) {
+            lyricRecord.updateCurrentLine(currentTick);
+        }
+
+        // Stop when the tile is no longer playing or missing.
+        TileEntity te = mc.theWorld.getBlockTileEntity(sound.getX(), sound.getY(), sound.getZ());
+        if (te instanceof TileEntityMusicPlayer musicPlayer) {
+            if (!musicPlayer.isPlay()) {
+                stopAndClearTile(mc, sound);
+                return;
+            }
+            musicPlayer.lyricRecord = lyricRecord;
+        } else {
+            stopAndClearTile(mc, sound);
+            return;
+        }
+
+        // Fallback stop: avoid lingering playback if the stream stalls or server missed a stop update.
+        int maxTick = Math.max(sound.getTimeSecond(), 1) * 20 + 50;
+        if (currentTick > maxTick) {
+            stopAndClearTile(mc, sound);
+        }
+    }
+
+    private static void stopAndClearTile(Minecraft mc, NetMusicSound sound) {
+        TileEntity te = mc.theWorld.getBlockTileEntity(sound.getX(), sound.getY(), sound.getZ());
+        if (te instanceof TileEntityMusicPlayer musicPlayer) {
+            musicPlayer.lyricRecord = null;
+        }
+        stop();
     }
 
     private static void stream(NetMusicSound sound, int session) {
         long timeoutAt = System.currentTimeMillis() + Math.max(sound.getTimeSecond(), 1) * 1000L + 3000L;
         try (InputStream remote = new MusicBufferedInputStream(new ChunkedAudioStream(sound.getSongUrl(), NetWorker.getProxyFromConfig()));
-             AudioInputStream compressed = AudioSystem.getAudioInputStream(remote)) {
+             InputStream prepared = prepareAudioStream(remote);
+             AudioInputStream compressed = AudioSystem.getAudioInputStream(prepared)) {
             AudioFormat base = compressed.getFormat();
             AudioFormat decoded = new AudioFormat(AudioFormat.Encoding.PCM_SIGNED,
                     base.getSampleRate(), 16, base.getChannels(), base.getChannels() * 2,
                     base.getSampleRate(), false);
 
             try (AudioInputStream pcm = AudioSystem.getAudioInputStream(decoded, compressed)) {
-                DataLine.Info info = new DataLine.Info(SourceDataLine.class, decoded);
+                AudioFormat finalFormat = applyStereoConfig(base);
+                DataLine.Info info = new DataLine.Info(SourceDataLine.class, finalFormat);
                 try (SourceDataLine line = (SourceDataLine) AudioSystem.getLine(info)) {
-                    line.open(decoded);
-                    line.start();
-                    byte[] buffer = new byte[8192];
-                    int read;
-                    while (session == playSession && !stopRequested && !Thread.currentThread().isInterrupted()
-                            && System.currentTimeMillis() < timeoutAt
-                            && (read = pcm.read(buffer, 0, buffer.length)) != -1) {
-                        line.write(buffer, 0, read);
+                    try (AudioInputStream finalPcm = AudioSystem.getAudioInputStream(finalFormat, pcm)) {
+                        line.open(finalFormat);
+                        line.start();
+                        byte[] buffer = new byte[8192];
+                        int read;
+                        while (session == playSession && !stopRequested && !Thread.currentThread().isInterrupted()
+                                && System.currentTimeMillis() < timeoutAt
+                                && (read = finalPcm.read(buffer, 0, buffer.length)) != -1) {
+                            line.write(buffer, 0, read);
+                        }
+                        line.drain();
                     }
-                    line.drain();
                 }
             }
         } catch (Exception e) {
@@ -84,8 +171,56 @@ public final class ClientMusicPlayer {
                 if (currentSound == sound && session == playSession) {
                     currentSound = null;
                     playThread = null;
+                    currentTick = 0;
                 }
             }
+        }
+    }
+
+    private static InputStream prepareAudioStream(InputStream input) {
+        try {
+            skipID3(input);
+        } catch (Exception ignored) {
+            // Best-effort: ID3 skipping is only needed for some MP3 streams.
+        }
+        return input;
+    }
+
+    private static AudioFormat applyStereoConfig(AudioFormat base) {
+        // Preserve the original mod's behavior: if stereo is enabled, force 1 channel, else 2 channels.
+        // This looks inverted but matches upstream logic and avoids subtle regressions.
+        if (com.github.tartaricacid.netmusic.config.GeneralConfig.ENABLE_STEREO) {
+            return new AudioFormat(AudioFormat.Encoding.PCM_SIGNED, base.getSampleRate(), 16, 1, 2, base.getSampleRate(), false);
+        }
+        return new AudioFormat(AudioFormat.Encoding.PCM_SIGNED, base.getSampleRate(), 16, 2, 4, base.getSampleRate(), false);
+    }
+
+    private static void skipID3(InputStream inputStream) throws java.io.IOException {
+        if (!inputStream.markSupported()) {
+            return;
+        }
+        inputStream.mark(10);
+        byte[] header = new byte[10];
+        int read = inputStream.read(header, 0, 10);
+        if (read < 10) {
+            inputStream.reset();
+            return;
+        }
+        if (header[0] == 'I' && header[1] == 'D' && header[2] == '3') {
+            int size = ((header[6] & 0x7F) << 21)
+                    | ((header[7] & 0x7F) << 14)
+                    | ((header[8] & 0x7F) << 7)
+                    | (header[9] & 0x7F);
+            int skipped = 0;
+            int skip;
+            do {
+                skip = (int) inputStream.skip(size - skipped);
+                if (skip != 0) {
+                    skipped += skip;
+                }
+            } while (skipped < size && skip != 0);
+        } else {
+            inputStream.reset();
         }
     }
 }

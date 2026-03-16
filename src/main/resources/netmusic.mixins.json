@@ -5,7 +5,8 @@
   "target": "DEFAULT",
   "minVersion": "0.8.3",
   "client": [
-    "RenderBlocksMixin"
+    "RenderBlocksMixin",
+    "MinecraftMixin"
   ],
   "injectors": {
     "defaultRequire": 1

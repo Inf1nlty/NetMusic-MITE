@@ -1,5 +1,6 @@
 package com.github.tartaricacid.netmusic.block;
 
+import com.github.tartaricacid.netmusic.client.renderer.RenderTypes;
 import com.github.tartaricacid.netmusic.item.ItemMusicCD;
 import com.github.tartaricacid.netmusic.tileentity.TileEntityMusicPlayer;
 import com.github.tartaricacid.netmusic.creativetab.NetMusicCreativeTab;
@@ -69,6 +70,16 @@ public class BlockMusicPlayer extends BlockDirectionalWithTileEntity {
 
     public static boolean isCycleDisabled(int metadata) {
         return (metadata & CYCLE_DISABLE_MASK) != 0;
+    }
+
+    @Override
+    public boolean isStandardFormCube(boolean[] is_standard_form_cube, int metadata) {
+        return false;
+    }
+
+    @Override
+    public int getRenderType() {
+        return RenderTypes.musicPlayerRenderType;
     }
 
     @Override

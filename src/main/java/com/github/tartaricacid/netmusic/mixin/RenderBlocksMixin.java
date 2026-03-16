@@ -1,13 +1,13 @@
 package com.github.tartaricacid.netmusic.mixin;
 
-import com.github.tartaricacid.netmusic.client.renderer.MusicPlayerItemRenderer;
-import com.github.tartaricacid.netmusic.client.renderer.MusicPlayerRenderer;
+import com.github.tartaricacid.netmusic.client.renderer.CDBurnerTileEntityRenderer;
+import com.github.tartaricacid.netmusic.client.renderer.ComputerTileEntityRenderer;
+import com.github.tartaricacid.netmusic.client.renderer.MusicPlayerTileEntityRenderer;
 import com.github.tartaricacid.netmusic.client.renderer.RenderTypes;
-import com.github.tartaricacid.netmusic.init.InitBlocks;
 import net.minecraft.Block;
 import net.minecraft.IBlockAccess;
 import net.minecraft.RenderBlocks;
-import net.minecraft.TileEntityRenderer;
+import net.minecraft.Tessellator;
 import org.lwjgl.opengl.GL11;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -22,20 +22,55 @@ public abstract class RenderBlocksMixin {
 
     @Inject(method = "renderBlockByRenderType", at = @At("HEAD"), cancellable = true)
     private void netmusic$renderMusicPlayerWorld(Block block, int x, int y, int z, CallbackInfoReturnable<Boolean> cir) {
-        if (block != InitBlocks.MUSIC_PLAYER || this.blockAccess == null) {
+        if (this.blockAccess == null || block.getRenderType() != RenderTypes.musicPlayerRenderType) {
             return;
         }
-        RenderBlocks renderer = (RenderBlocks) (Object) this;
-        cir.setReturnValue(MusicPlayerRenderer.renderWorldBlock(renderer, block, this.blockAccess, x, y, z));
+        // Match 1.20 behavior: music player base is rendered in TileEntity renderer.
+        cir.setReturnValue(Boolean.TRUE);
     }
 
     @Inject(method = "renderBlockAsItem", at = @At("HEAD"), cancellable = true)
     private void netmusic$renderMusicPlayerItem(Block block, int metadata, float brightness, CallbackInfo ci) {
-        if (block != InitBlocks.MUSIC_PLAYER) {
+        if (block.getRenderType() != RenderTypes.musicPlayerRenderType) {
             return;
         }
-        RenderBlocks renderer = (RenderBlocks) (Object) this;
-        MusicPlayerItemRenderer.render(renderer, block, metadata);
+        GL11.glPushMatrix();
+        Tessellator t = Tessellator.instance;
+        double ox = t.xOffset, oy = t.yOffset, oz = t.zOffset;
+        t.setTranslation(0.0D, 0.0D, 0.0D);
+        try {
+            MusicPlayerTileEntityRenderer.renderModelAsItem(metadata);
+        } finally {
+            t.setTranslation(ox, oy, oz);
+        }
+        GL11.glPopMatrix();
+        ci.cancel();
+    }
+
+    @Inject(method = "renderBlockByRenderType", at = @At("HEAD"), cancellable = true)
+    private void netmusic$renderComputerWorld(Block block, int x, int y, int z, CallbackInfoReturnable<Boolean> cir) {
+        if (this.blockAccess == null || block.getRenderType() != RenderTypes.computerRenderType) {
+            return;
+        }
+        // Rendered in ComputerTileEntityRenderer to support model UVs from the Blockbench json.
+        cir.setReturnValue(Boolean.TRUE);
+    }
+
+    @Inject(method = "renderBlockAsItem", at = @At("HEAD"), cancellable = true)
+    private void netmusic$renderComputerItem(Block block, int metadata, float brightness, CallbackInfo ci) {
+        if (block.getRenderType() != RenderTypes.computerRenderType) {
+            return;
+        }
+        GL11.glPushMatrix();
+        Tessellator t = Tessellator.instance;
+        double ox = t.xOffset, oy = t.yOffset, oz = t.zOffset;
+        t.setTranslation(0.0D, 0.0D, 0.0D);
+        try {
+            ComputerTileEntityRenderer.renderModelAsItem(metadata);
+        } finally {
+            t.setTranslation(ox, oy, oz);
+            GL11.glPopMatrix();
+        }
         ci.cancel();
     }
 
@@ -52,14 +87,21 @@ public abstract class RenderBlocksMixin {
         cir.setReturnValue(Boolean.TRUE);
     }
 
-    @Inject(method = "renderBlockAsItem", at = @At(value = "INVOKE_ASSIGN", target = "Lnet/minecraft/Block;getRenderType()I"), cancellable = true)
+    @Inject(method = "renderBlockAsItem", at = @At("HEAD"), cancellable = true)
     private void netmusic$renderCDBurnerItem(Block par1Block, int par2, float par3, CallbackInfo ci) {
         int renderType = par1Block.getRenderType();
         if (renderType == RenderTypes.cdBurnerRenderType) {
-            GL11.glRotatef(90.0F, 0.0F, 1.0F, 0.0F);
-            GL11.glTranslatef(-0.5F, -0.5F, -0.5F);
-            TileEntityRenderer.instance.renderTileEntityAt(new com.github.tartaricacid.netmusic.tileentity.TileEntityCDBurner(), 0.0D, 0.0D, 0.0D, 0.0F);
-            GL11.glEnable(32826);
+            GL11.glPushMatrix();
+            Tessellator t = Tessellator.instance;
+            double ox = t.xOffset, oy = t.yOffset, oz = t.zOffset;
+            t.setTranslation(0.0D, 0.0D, 0.0D);
+            try {
+                CDBurnerTileEntityRenderer.renderModelAsItem(par2);
+                GL11.glEnable(32826);
+            } finally {
+                t.setTranslation(ox, oy, oz);
+            }
+            GL11.glPopMatrix();
             ci.cancel();
         }
     }

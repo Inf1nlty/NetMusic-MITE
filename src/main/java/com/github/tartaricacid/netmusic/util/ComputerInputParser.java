@@ -47,9 +47,6 @@ public final class ComputerInputParser {
 
         String urlText = rawUrl.trim();
         if (URL_HTTP_REG.matcher(urlText).matches()) {
-            if (!isSupportedAudioPath(urlText)) {
-                return ScreenSubmitResult.fail("gui.netmusic.computer.url.not_supported");
-            }
             return createResult(urlText, rawName.trim(), time, readOnly);
         }
 
@@ -57,9 +54,6 @@ public final class ComputerInputParser {
             File file = Paths.get(urlText).toFile();
             if (!file.isFile()) {
                 return ScreenSubmitResult.fail("gui.netmusic.computer.url.local_file_error");
-            }
-            if (!isSupportedAudioPath(file.getName())) {
-                return ScreenSubmitResult.fail("gui.netmusic.computer.url.not_supported");
             }
             try {
                 URL url = file.toURI().toURL();
@@ -71,14 +65,6 @@ public final class ComputerInputParser {
         }
 
         return ScreenSubmitResult.fail("gui.netmusic.computer.url.error");
-    }
-
-    private static boolean isSupportedAudioPath(String path) {
-        if (StringUtils.isBlank(path)) {
-            return false;
-        }
-        String lower = path.toLowerCase();
-        return lower.endsWith(".mp3") || lower.endsWith(".flac");
     }
 
     private static ScreenSubmitResult createResult(String url, String name, int time, boolean readOnly) {

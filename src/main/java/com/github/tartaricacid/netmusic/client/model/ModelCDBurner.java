@@ -34,7 +34,7 @@ public final class ModelCDBurner {
         CUBOIDS.add(new Cuboid(minX / 16.0F, minY / 16.0F, minZ / 16.0F, maxX / 16.0F, maxY / 16.0F, maxZ / 16.0F));
     }
 
-    public static final class Cuboid {
+    public static final class Cuboid implements com.github.tartaricacid.netmusic.client.renderer.CuboidRenderHelper.Cuboid {
         public final float minX, minY, minZ, maxX, maxY, maxZ;
         private Cuboid(float minX, float minY, float minZ, float maxX, float maxY, float maxZ) {
             this.minX = minX;
@@ -44,6 +44,13 @@ public final class ModelCDBurner {
             this.maxY = maxY;
             this.maxZ = maxZ;
         }
+
+        @Override public float minX() { return minX; }
+        @Override public float minY() { return minY; }
+        @Override public float minZ() { return minZ; }
+        @Override public float maxX() { return maxX; }
+        @Override public float maxY() { return maxY; }
+        @Override public float maxZ() { return maxZ; }
     }
 }
 

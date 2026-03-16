@@ -1,6 +1,8 @@
 package com.github.tartaricacid.netmusic.block;
 
+import com.github.tartaricacid.netmusic.client.renderer.RenderTypes;
 import com.github.tartaricacid.netmusic.creativetab.NetMusicCreativeTab;
+import com.github.tartaricacid.netmusic.tileentity.TileEntityComputer;
 import com.github.tartaricacid.netmusic.util.ClientGuiBridge;
 import com.github.tartaricacid.netmusic.util.MenuSongWriter;
 import com.github.tartaricacid.netmusic.util.MusicCdWriteHelper;
@@ -9,7 +11,7 @@ import com.github.tartaricacid.netmusic.util.PlayerInteractionTracker;
 import net.minecraft.*;
 import net.xiaoyu233.fml.reload.utils.IdUtil;
 
-public class BlockComputer extends BlockDirectional {
+public class BlockComputer extends BlockDirectionalWithTileEntity {
 
     public BlockComputer() {
         this(IdUtil.getNextBlockID());
@@ -20,7 +22,7 @@ public class BlockComputer extends BlockDirectional {
         this.setHardness(0.5F);
         this.setStepSound(soundWoodFootstep);
         this.setCreativeTab(NetMusicCreativeTab.TAB);
-        this.setBlockBoundsForAllThreads(0.0, 0.0, 0.0, 1.0, 1.0, 1.0);
+        this.setBlockBoundsForAllThreads(0.0, 0.0, 0.03125, 1.0, 1.0625, 1.0);
     }
 
     @Override
@@ -91,12 +93,17 @@ public class BlockComputer extends BlockDirectional {
 
     @Override
     public void setBlockBoundsBasedOnStateAndNeighbors(IBlockAccess blockAccess, int x, int y, int z) {
-        this.setBlockBoundsForAllThreads(0.0, 0.0, 0.0, 1.0, 1.0, 1.0);
+        this.setBlockBoundsForAllThreads(0.0, 0.0, 0.03125, 1.0, 1.0625, 1.0);
     }
 
     @Override
     public void setBlockBoundsForItemRender(int itemDamage) {
-        this.setBlockBoundsForAllThreads(0.0, 0.0, 0.0, 1.0, 1.0, 1.0);
+        this.setBlockBoundsForAllThreads(0.0, 0.0, 0.03125, 1.0, 1.0625, 1.0);
+    }
+
+    @Override
+    public boolean isStandardFormCube(boolean[] is_standard_form_cube, int metadata) {
+        return false;
     }
 
     @Override
@@ -116,5 +123,15 @@ public class BlockComputer extends BlockDirectional {
     @Override
     public boolean isPortable(World world, EntityLivingBase entity_living_base, int x, int y, int z) {
         return true;
+    }
+
+    @Override
+    public TileEntity createNewTileEntity(World world) {
+        return new TileEntityComputer();
+    }
+
+    @Override
+    public int getRenderType() {
+        return RenderTypes.computerRenderType;
     }
 }

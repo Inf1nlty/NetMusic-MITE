@@ -1,17 +1,18 @@
 package com.github.tartaricacid.netmusic.client.renderer;
 
+import com.github.tartaricacid.netmusic.tileentity.TileEntityComputer;
 import net.minecraft.Minecraft;
 import net.minecraft.Tessellator;
 import net.minecraft.TileEntity;
 import net.minecraft.TileEntitySpecialRenderer;
 import org.lwjgl.opengl.GL11;
 
-public class CDBurnerTileEntityRenderer extends TileEntitySpecialRenderer {
+public class ComputerTileEntityRenderer extends TileEntitySpecialRenderer {
     private static final BlockbenchModel MODEL = BlockbenchModel.load(
-            "assets/netmusic/models/block/cd_burner.json",
-            new net.minecraft.ResourceLocation("netmusic:textures/blocks/cd_burner.png"),
-            128,
-            128
+            "assets/netmusic/models/block/computer.json",
+            new net.minecraft.ResourceLocation("netmusic:textures/blocks/computer.png"),
+            64,
+            64
     );
 
     @Override
@@ -38,7 +39,9 @@ public class CDBurnerTileEntityRenderer extends TileEntitySpecialRenderer {
         }
         mc.getTextureManager().bindTexture(MODEL.texture);
         Tessellator t = Tessellator.instance;
-        double ox = t.xOffset, oy = t.yOffset, oz = t.zOffset;
+        double ox = t.xOffset;
+        double oy = t.yOffset;
+        double oz = t.zOffset;
         boolean cullEnabled = GL11.glIsEnabled(GL11.GL_CULL_FACE);
         try {
             t.setTranslation(0.0D, 0.0D, 0.0D);

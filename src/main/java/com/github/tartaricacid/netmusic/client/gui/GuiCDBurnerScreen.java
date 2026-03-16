@@ -8,27 +8,47 @@ import com.github.tartaricacid.netmusic.util.ScreenSubmitResult;
 import net.minecraft.GuiButton;
 import net.minecraft.GuiScreen;
 import net.minecraft.GuiTextField;
+import net.minecraft.ResourceLocation;
 import net.minecraft.StatCollector;
+import org.lwjgl.opengl.GL11;
 import org.lwjgl.input.Keyboard;
 
 public class GuiCDBurnerScreen extends GuiScreen {
+    private static final ResourceLocation BG = new ResourceLocation("netmusic", "textures/gui/cd_burner.png");
+    private static final int GUI_WIDTH = 176;
+    private static final int GUI_HEIGHT = 176;
+
     private GuiTextField idField;
     private boolean readOnly;
     private String tipsKey = "";
+    private int left;
+    private int top;
 
     @Override
     public void initGui() {
         Keyboard.enableRepeatEvents(true);
         this.buttonList.clear();
-        int left = this.width / 2 - 90;
-        int top = this.height / 2 - 45;
-        this.idField = new GuiTextField(this.fontRenderer, left + 8, top + 20, 164, 18);
-        this.idField.setMaxStringLength(64);
-        this.idField.setFocused(true);
+        this.left = (this.width - GUI_WIDTH) / 2;
+        this.top = (this.height - GUI_HEIGHT) / 2;
 
-        this.buttonList.add(new GuiButton(0, left + 8, top + 50, 78, 20,
+        String prevText = this.idField != null ? this.idField.getText() : "";
+        boolean focused = this.idField != null && this.idField.isFocused();
+
+        this.idField = new GuiTextField(this.fontRenderer, left + 12, top + 18, 132, 16) {
+            @Override
+            public void writeText(String text) {
+                super.writeText(CDBurnerInputParser.normalizeInput(text));
+            }
+        };
+        this.idField.setMaxStringLength(19);
+        this.idField.setText(prevText);
+        this.idField.setEnableBackgroundDrawing(false);
+        this.idField.setFocused(true);
+        this.idField.setFocused(focused || prevText.isEmpty());
+
+        this.buttonList.add(new GuiButton(0, left + 7, top + 35, 55, 18,
                 StatCollector.translateToLocal("gui.netmusic.cd_burner.craft")));
-        this.buttonList.add(new GuiButton(1, left + 94, top + 50, 78, 20, getReadOnlyText()));
+        this.buttonList.add(new GuiButton(1, left + 66, top + 34, 80, 20, getReadOnlyText()));
     }
 
     @Override
@@ -97,18 +117,17 @@ public class GuiCDBurnerScreen extends GuiScreen {
     @Override
     public void drawScreen(int mouseX, int mouseY, float partialTicks) {
         this.drawDefaultBackground();
-        int left = this.width / 2 - 90;
-        int top = this.height / 2 - 45;
-        drawRect(left, top, left + 180, top + 95, 0xCC000000);
-        this.drawCenteredString(this.fontRenderer, StatCollector.translateToLocal("tile.netmusic:cd_burner.name"), this.width / 2, top + 8, 0xFFFFFF);
+        this.mc.getTextureManager().bindTexture(BG);
+        GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
+        this.drawTexturedModalRect(left, top, 0, 0, GUI_WIDTH, GUI_HEIGHT);
 
         this.idField.drawTextBox();
         if (this.idField.getText().trim().isEmpty() && !this.idField.isFocused()) {
-            this.fontRenderer.drawStringWithShadow(StatCollector.translateToLocal("gui.netmusic.cd_burner.id.tips"), left + 10, top + 25, 0xA0A0A0);
+            this.fontRenderer.drawStringWithShadow(StatCollector.translateToLocal("gui.netmusic.cd_burner.id.tips"), left + 12, top + 18, 0xA0A0A0);
         }
 
         if (this.tipsKey != null && !this.tipsKey.isEmpty()) {
-            this.fontRenderer.drawSplitString(StatCollector.translateToLocal(this.tipsKey), left + 8, top + 74, 164, 0xFF5555);
+            this.fontRenderer.drawSplitString(StatCollector.translateToLocal(this.tipsKey), left + 8, top + 57, 135, 0xCF0000);
         }
         super.drawScreen(mouseX, mouseY, partialTicks);
     }

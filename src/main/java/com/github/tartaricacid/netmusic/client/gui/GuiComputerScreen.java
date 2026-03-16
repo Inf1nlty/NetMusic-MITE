@@ -8,34 +8,59 @@ import com.github.tartaricacid.netmusic.util.ScreenSubmitResult;
 import net.minecraft.GuiButton;
 import net.minecraft.GuiScreen;
 import net.minecraft.GuiTextField;
+import net.minecraft.ResourceLocation;
 import net.minecraft.StatCollector;
+import org.lwjgl.opengl.GL11;
 import org.lwjgl.input.Keyboard;
 
 public class GuiComputerScreen extends GuiScreen {
+    private static final ResourceLocation BG = new ResourceLocation("netmusic", "textures/gui/computer.png");
+    private static final int GUI_WIDTH = 176;
+    private static final int GUI_HEIGHT = 216;
+
     private GuiTextField urlField;
     private GuiTextField nameField;
     private GuiTextField timeField;
     private boolean readOnly;
     private String tipsKey = "";
+    private int left;
+    private int top;
 
     @Override
     public void initGui() {
         Keyboard.enableRepeatEvents(true);
         this.buttonList.clear();
-        int left = this.width / 2 - 105;
-        int top = this.height / 2 - 72;
+        this.left = (this.width - GUI_WIDTH) / 2;
+        this.top = (this.height - GUI_HEIGHT) / 2;
 
-        this.urlField = new GuiTextField(this.fontRenderer, left + 10, top + 20, 190, 18);
-        this.urlField.setMaxStringLength(1024);
-        this.urlField.setFocused(true);
-        this.nameField = new GuiTextField(this.fontRenderer, left + 10, top + 45, 190, 18);
-        this.nameField.setMaxStringLength(128);
-        this.timeField = new GuiTextField(this.fontRenderer, left + 10, top + 70, 80, 18);
-        this.timeField.setMaxStringLength(6);
+        String prevUrl = this.urlField != null ? this.urlField.getText() : "";
+        String prevName = this.nameField != null ? this.nameField.getText() : "";
+        String prevTime = this.timeField != null ? this.timeField.getText() : "";
+        boolean prevUrlFocused = this.urlField != null && this.urlField.isFocused();
+        boolean prevNameFocused = this.nameField != null && this.nameField.isFocused();
+        boolean prevTimeFocused = this.timeField != null && this.timeField.isFocused();
 
-        this.buttonList.add(new GuiButton(0, left + 10, top + 100, 92, 20,
+        this.urlField = new GuiTextField(this.fontRenderer, left + 10, top + 18, 120, 16);
+        this.urlField.setMaxStringLength(32500);
+        this.urlField.setEnableBackgroundDrawing(false);
+        this.urlField.setText(prevUrl);
+        this.urlField.setFocused(prevUrlFocused || prevUrl.isEmpty());
+
+        this.nameField = new GuiTextField(this.fontRenderer, left + 10, top + 39, 120, 16);
+        this.nameField.setMaxStringLength(256);
+        this.nameField.setEnableBackgroundDrawing(false);
+        this.nameField.setText(prevName);
+        this.nameField.setFocused(prevNameFocused);
+
+        this.timeField = new GuiTextField(this.fontRenderer, left + 10, top + 61, 40, 16);
+        this.timeField.setMaxStringLength(5);
+        this.timeField.setEnableBackgroundDrawing(false);
+        this.timeField.setText(prevTime);
+        this.timeField.setFocused(prevTimeFocused);
+
+        this.buttonList.add(new GuiButton(0, left + 7, top + 78, 135, 18,
                 StatCollector.translateToLocal("gui.netmusic.cd_burner.craft")));
-        this.buttonList.add(new GuiButton(1, left + 108, top + 100, 92, 20, getReadOnlyText()));
+        this.buttonList.add(new GuiButton(1, left + 58, top + 55, 86, 20, getReadOnlyText()));
     }
 
     @Override
@@ -110,27 +135,26 @@ public class GuiComputerScreen extends GuiScreen {
     @Override
     public void drawScreen(int mouseX, int mouseY, float partialTicks) {
         this.drawDefaultBackground();
-        int left = this.width / 2 - 105;
-        int top = this.height / 2 - 72;
-        drawRect(left, top, left + 210, top + 130, 0xCC000000);
-        this.drawCenteredString(this.fontRenderer, StatCollector.translateToLocal("tile.netmusic:computer.name"), this.width / 2, top + 8, 0xFFFFFF);
+        this.mc.getTextureManager().bindTexture(BG);
+        GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
+        this.drawTexturedModalRect(left, top, 0, 0, GUI_WIDTH, GUI_HEIGHT);
 
         this.urlField.drawTextBox();
         this.nameField.drawTextBox();
         this.timeField.drawTextBox();
 
         if (this.urlField.getText().trim().isEmpty() && !this.urlField.isFocused()) {
-            this.fontRenderer.drawStringWithShadow(StatCollector.translateToLocal("gui.netmusic.computer.url.tips"), left + 12, top + 25, 0xA0A0A0);
+            this.fontRenderer.drawStringWithShadow(StatCollector.translateToLocal("gui.netmusic.computer.url.tips"), left + 12, top + 18, 0xA0A0A0);
         }
         if (this.nameField.getText().trim().isEmpty() && !this.nameField.isFocused()) {
-            this.fontRenderer.drawStringWithShadow(StatCollector.translateToLocal("gui.netmusic.computer.name.tips"), left + 12, top + 50, 0xA0A0A0);
+            this.fontRenderer.drawStringWithShadow(StatCollector.translateToLocal("gui.netmusic.computer.name.tips"), left + 12, top + 39, 0xA0A0A0);
         }
         if (this.timeField.getText().trim().isEmpty() && !this.timeField.isFocused()) {
-            this.fontRenderer.drawStringWithShadow(StatCollector.translateToLocal("gui.netmusic.computer.time.tips"), left + 12, top + 75, 0xA0A0A0);
+            this.fontRenderer.drawStringWithShadow(StatCollector.translateToLocal("gui.netmusic.computer.time.tips"), left + 11, top + 61, 0xA0A0A0);
         }
 
         if (this.tipsKey != null && !this.tipsKey.isEmpty()) {
-            this.fontRenderer.drawSplitString(StatCollector.translateToLocal(this.tipsKey), left + 10, top + 124, 190, 0xFF5555);
+            this.fontRenderer.drawSplitString(StatCollector.translateToLocal(this.tipsKey), left + 8, top + 100, 162, 0xCF0000);
         }
         super.drawScreen(mouseX, mouseY, partialTicks);
     }

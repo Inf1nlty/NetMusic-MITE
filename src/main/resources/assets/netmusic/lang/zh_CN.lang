@@ -2,9 +2,9 @@
 
 item.netmusic:music_cd.name=音乐唱片
 
-tile.netmusic:music_player.name=唱片机
-tile.netmusic:cd_burner.name=唱片刻录机
-tile.netmusic:computer.name=电脑
+tile.music_player.name=唱片机
+tile.cd_burner.name=唱片刻录机
+tile.computer.name=电脑
 
 tooltips.netmusic.cd.trans_name=歌名
 tooltips.netmusic.cd.artists=歌手

@@ -1,6 +1,7 @@
 package com.github.tartaricacid.netmusic.block;
 
 import com.github.tartaricacid.netmusic.creativetab.NetMusicCreativeTab;
+import com.github.tartaricacid.netmusic.util.ClientGuiBridge;
 import com.github.tartaricacid.netmusic.util.MenuSongWriter;
 import com.github.tartaricacid.netmusic.util.MusicCdWriteHelper;
 import com.github.tartaricacid.netmusic.util.PendingSongTracker;
@@ -47,6 +48,10 @@ public class BlockCDBurner extends BlockDirectional {
 
     @Override
     public boolean onBlockActivated(World world, int x, int y, int z, EntityPlayer player, EnumFace face, float offsetX, float offsetY, float offsetZ) {
+        if (world.isRemote) {
+            ClientGuiBridge.openCDBurner(player);
+            return true;
+        }
         if (player.onServer()) {
             PlayerInteractionTracker.markCdBurner(player, world.getTotalWorldTime(), x, y, z);
             if (tryApplyPendingSong(world, player)) {

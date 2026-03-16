@@ -3,7 +3,9 @@ package com.github.tartaricacid.netmusic.network.message;
 import com.github.tartaricacid.netmusic.NetMusic;
 import com.github.tartaricacid.netmusic.item.ItemMusicCD;
 import com.github.tartaricacid.netmusic.util.MenuSongWriter;
+import com.github.tartaricacid.netmusic.util.MusicCdWriteHelper;
 import com.github.tartaricacid.netmusic.util.PendingSongTracker;
+import com.github.tartaricacid.netmusic.util.PlayerInteractionTracker;
 import com.github.tartaricacid.netmusic.util.ScreenSubmitResult;
 import com.github.tartaricacid.netmusic.util.SongInfoHelper;
 import moddedmite.rustedironcore.network.PacketByteBuf;
@@ -13,6 +15,7 @@ import net.minecraft.ResourceLocation;
 public class SetMusicIDMessage implements Message {
     public final static ResourceLocation ID = new ResourceLocation(NetMusic.MOD_ID, "set_music_id");
     private static final int MAX_ARTIST_COUNT = 32;
+    private static final long INTERACTION_WINDOW_TICKS = 20L * 30L;
     private final Source source;
     private final ItemMusicCD.SongInfo song;
 
@@ -56,10 +59,38 @@ public class SetMusicIDMessage implements Message {
         PendingSongTracker.Source trackerSource = this.source == Source.COMPUTER
                 ? PendingSongTracker.Source.COMPUTER
                 : PendingSongTracker.Source.CD_BURNER;
-        MenuSongWriter.WriteResult result = MenuSongWriter.tryWriteToSourceMenu(entityPlayer, trackerSource, SongInfoHelper.copy(this.song));
+
+        ItemMusicCD.SongInfo copiedSong = SongInfoHelper.copy(this.song);
+        MenuSongWriter.WriteResult result = MenuSongWriter.tryWriteToSourceMenu(entityPlayer, trackerSource, copiedSong);
+        if (result.isSuccess()) {
+            PendingSongTracker.clear(entityPlayer);
+            return;
+        }
         if (result.isFailure()) {
             entityPlayer.addChatMessage(ScreenSubmitResult.resolveFeedbackKey(result.failureKey, "message.netmusic.music_cd.need_writable_cd"));
+            return;
         }
+
+        long now = entityPlayer.worldObj == null ? 0L : entityPlayer.worldObj.getTotalWorldTime();
+        boolean hasInteraction = trackerSource == PendingSongTracker.Source.CD_BURNER
+                ? PlayerInteractionTracker.hasRecentCDBurnerInteraction(entityPlayer, now, INTERACTION_WINDOW_TICKS)
+                : PlayerInteractionTracker.hasRecentComputerInteraction(entityPlayer, now, INTERACTION_WINDOW_TICKS);
+        if (!hasInteraction) {
+            entityPlayer.addChatMessage(trackerSource == PendingSongTracker.Source.CD_BURNER
+                    ? "command.netmusic.music_cd.need_cd_burner"
+                    : "command.netmusic.music_cd.need_computer");
+            return;
+        }
+
+        if (!MusicCdWriteHelper.writeSongToPlayerCd(entityPlayer, copiedSong)) {
+            entityPlayer.addChatMessage("message.netmusic.music_cd.need_writable_cd");
+            return;
+        }
+
+        PendingSongTracker.clear(entityPlayer);
+        entityPlayer.addChatMessage(trackerSource == PendingSongTracker.Source.CD_BURNER
+                ? "message.netmusic.cd_burner.applied"
+                : "message.netmusic.computer.applied");
     }
 
     private static void writeSongInfo(PacketByteBuf buf, ItemMusicCD.SongInfo song) {

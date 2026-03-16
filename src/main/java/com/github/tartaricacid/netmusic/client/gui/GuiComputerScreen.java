@@ -1,37 +1,41 @@
 package com.github.tartaricacid.netmusic.client.gui;
 
 import com.github.tartaricacid.netmusic.client.network.ClientNetWorkHandler;
+import com.github.tartaricacid.netmusic.inventory.ComputerMenu;
 import com.github.tartaricacid.netmusic.item.ItemMusicCD;
 import com.github.tartaricacid.netmusic.network.message.SetMusicIDMessage;
 import com.github.tartaricacid.netmusic.util.ComputerInputParser;
 import com.github.tartaricacid.netmusic.util.ScreenSubmitResult;
 import net.minecraft.GuiButton;
-import net.minecraft.GuiScreen;
+import net.minecraft.GuiContainer;
 import net.minecraft.GuiTextField;
 import net.minecraft.ResourceLocation;
 import net.minecraft.StatCollector;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.input.Keyboard;
 
-public class GuiComputerScreen extends GuiScreen {
+public class GuiComputerScreen extends GuiContainer {
     private static final ResourceLocation BG = new ResourceLocation("netmusic", "textures/gui/computer.png");
-    private static final int GUI_WIDTH = 176;
-    private static final int GUI_HEIGHT = 216;
+    private final ComputerMenu menu;
 
     private GuiTextField urlField;
     private GuiTextField nameField;
     private GuiTextField timeField;
     private boolean readOnly;
     private String tipsKey = "";
-    private int left;
-    private int top;
+
+    public GuiComputerScreen(ComputerMenu menu) {
+        super(menu);
+        this.menu = menu;
+        this.xSize = 176;
+        this.ySize = 216;
+    }
 
     @Override
     public void initGui() {
+        super.initGui();
         Keyboard.enableRepeatEvents(true);
         this.buttonList.clear();
-        this.left = (this.width - GUI_WIDTH) / 2;
-        this.top = (this.height - GUI_HEIGHT) / 2;
 
         String prevUrl = this.urlField != null ? this.urlField.getText() : "";
         String prevName = this.nameField != null ? this.nameField.getText() : "";
@@ -40,31 +44,32 @@ public class GuiComputerScreen extends GuiScreen {
         boolean prevNameFocused = this.nameField != null && this.nameField.isFocused();
         boolean prevTimeFocused = this.timeField != null && this.timeField.isFocused();
 
-        this.urlField = new GuiTextField(this.fontRenderer, left + 10, top + 18, 120, 16);
+        this.urlField = new GuiTextField(this.fontRenderer, this.guiLeft + 10, this.guiTop + 18, 120, 16);
         this.urlField.setMaxStringLength(32500);
         this.urlField.setEnableBackgroundDrawing(false);
         this.urlField.setText(prevUrl);
         this.urlField.setFocused(prevUrlFocused || prevUrl.isEmpty());
 
-        this.nameField = new GuiTextField(this.fontRenderer, left + 10, top + 39, 120, 16);
+        this.nameField = new GuiTextField(this.fontRenderer, this.guiLeft + 10, this.guiTop + 39, 120, 16);
         this.nameField.setMaxStringLength(256);
         this.nameField.setEnableBackgroundDrawing(false);
         this.nameField.setText(prevName);
         this.nameField.setFocused(prevNameFocused);
 
-        this.timeField = new GuiTextField(this.fontRenderer, left + 10, top + 61, 40, 16);
+        this.timeField = new GuiTextField(this.fontRenderer, this.guiLeft + 10, this.guiTop + 61, 40, 16);
         this.timeField.setMaxStringLength(5);
         this.timeField.setEnableBackgroundDrawing(false);
         this.timeField.setText(prevTime);
         this.timeField.setFocused(prevTimeFocused);
 
-        this.buttonList.add(new GuiButton(0, left + 7, top + 78, 135, 18,
+        this.buttonList.add(new GuiButton(0, this.guiLeft + 7, this.guiTop + 78, 135, 18,
                 StatCollector.translateToLocal("gui.netmusic.cd_burner.craft")));
-        this.buttonList.add(new GuiButton(1, left + 58, top + 55, 86, 20, getReadOnlyText()));
+        this.buttonList.add(new GuiButton(1, this.guiLeft + 58, this.guiTop + 55, 86, 20, getReadOnlyText()));
     }
 
     @Override
     public void onGuiClosed() {
+        super.onGuiClosed();
         Keyboard.enableRepeatEvents(false);
     }
 
@@ -88,6 +93,12 @@ public class GuiComputerScreen extends GuiScreen {
     }
 
     private void submit() {
+        String writeFailure = this.menu.getWriteFailureKey();
+        if (writeFailure != null && !"gui.netmusic.computer.url.error".equals(writeFailure)) {
+            this.tipsKey = writeFailure;
+            return;
+        }
+
         ScreenSubmitResult result = ComputerInputParser.parseSongInfo(
                 this.urlField.getText(), this.nameField.getText(), this.timeField.getText(), this.readOnly);
         if (!result.isSuccess()) {
@@ -99,15 +110,14 @@ public class GuiComputerScreen extends GuiScreen {
             this.tipsKey = "gui.netmusic.computer.url.error";
             return;
         }
+        this.tipsKey = "";
         ClientNetWorkHandler.sendToServer(new SetMusicIDMessage(SetMusicIDMessage.Source.COMPUTER, songInfo));
-        this.tipsKey = "message.netmusic.computer.applied";
     }
 
     @Override
     protected void keyTyped(char c, int keyCode) {
-        if (keyCode == Keyboard.KEY_ESCAPE || (keyCode == this.mc.gameSettings.keyBindInventory.keyCode
-                && !this.urlField.isFocused() && !this.nameField.isFocused() && !this.timeField.isFocused())) {
-            this.mc.displayGuiScreen(null);
+        if (keyCode == this.mc.gameSettings.keyBindInventory.keyCode
+                && (this.urlField.isFocused() || this.nameField.isFocused() || this.timeField.isFocused())) {
             return;
         }
         if (this.urlField.textboxKeyTyped(c, keyCode) || this.nameField.textboxKeyTyped(c, keyCode) || this.timeField.textboxKeyTyped(c, keyCode)) {
@@ -133,29 +143,36 @@ public class GuiComputerScreen extends GuiScreen {
     }
 
     @Override
-    public void drawScreen(int mouseX, int mouseY, float partialTicks) {
-        this.drawDefaultBackground();
+    protected void drawGuiContainerForegroundLayer(int mouseX, int mouseY) {
+    }
+
+    @Override
+    protected void drawGuiContainerBackgroundLayer(float partialTicks, int mouseX, int mouseY) {
         this.mc.getTextureManager().bindTexture(BG);
         GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
-        this.drawTexturedModalRect(left, top, 0, 0, GUI_WIDTH, GUI_HEIGHT);
+        this.drawTexturedModalRect(this.guiLeft, this.guiTop, 0, 0, this.xSize, this.ySize);
 
         this.urlField.drawTextBox();
         this.nameField.drawTextBox();
         this.timeField.drawTextBox();
 
         if (this.urlField.getText().trim().isEmpty() && !this.urlField.isFocused()) {
-            this.fontRenderer.drawStringWithShadow(StatCollector.translateToLocal("gui.netmusic.computer.url.tips"), left + 12, top + 18, 0xA0A0A0);
+            this.fontRenderer.drawStringWithShadow(StatCollector.translateToLocal("gui.netmusic.computer.url.tips"), this.guiLeft + 12, this.guiTop + 18, 0xA0A0A0);
         }
         if (this.nameField.getText().trim().isEmpty() && !this.nameField.isFocused()) {
-            this.fontRenderer.drawStringWithShadow(StatCollector.translateToLocal("gui.netmusic.computer.name.tips"), left + 12, top + 39, 0xA0A0A0);
+            this.fontRenderer.drawStringWithShadow(StatCollector.translateToLocal("gui.netmusic.computer.name.tips"), this.guiLeft + 12, this.guiTop + 39, 0xA0A0A0);
         }
         if (this.timeField.getText().trim().isEmpty() && !this.timeField.isFocused()) {
-            this.fontRenderer.drawStringWithShadow(StatCollector.translateToLocal("gui.netmusic.computer.time.tips"), left + 11, top + 61, 0xA0A0A0);
+            this.fontRenderer.drawStringWithShadow(StatCollector.translateToLocal("gui.netmusic.computer.time.tips"), this.guiLeft + 11, this.guiTop + 61, 0xA0A0A0);
         }
 
         if (this.tipsKey != null && !this.tipsKey.isEmpty()) {
-            this.fontRenderer.drawSplitString(StatCollector.translateToLocal(this.tipsKey), left + 8, top + 100, 162, 0xCF0000);
+            this.fontRenderer.drawSplitString(StatCollector.translateToLocal(this.tipsKey), this.guiLeft + 8, this.guiTop + 100, 162, 0xCF0000);
         }
+    }
+
+    @Override
+    public void drawScreen(int mouseX, int mouseY, float partialTicks) {
         super.drawScreen(mouseX, mouseY, partialTicks);
     }
 }

@@ -2,12 +2,11 @@ package com.github.tartaricacid.netmusic.block;
 
 import com.github.tartaricacid.netmusic.client.renderer.RenderTypes;
 import com.github.tartaricacid.netmusic.creativetab.NetMusicCreativeTab;
+import com.github.tartaricacid.netmusic.inventory.ComputerMenu;
+import com.github.tartaricacid.netmusic.network.NetworkHandler;
+import com.github.tartaricacid.netmusic.network.message.OpenMenuMessage;
 import com.github.tartaricacid.netmusic.tileentity.TileEntityComputer;
-import com.github.tartaricacid.netmusic.util.ClientGuiBridge;
-import com.github.tartaricacid.netmusic.util.MenuSongWriter;
-import com.github.tartaricacid.netmusic.util.MusicCdWriteHelper;
-import com.github.tartaricacid.netmusic.util.PendingSongTracker;
-import com.github.tartaricacid.netmusic.util.PlayerInteractionTracker;
+import com.github.tartaricacid.netmusic.util.ServerWindowIdHelper;
 import net.minecraft.*;
 import net.xiaoyu233.fml.reload.utils.IdUtil;
 
@@ -50,45 +49,29 @@ public class BlockComputer extends BlockDirectionalWithTileEntity {
     @Override
     public boolean onBlockActivated(World world, int x, int y, int z, EntityPlayer player, EnumFace face, float offsetX, float offsetY, float offsetZ) {
         if (world.isRemote) {
-            ClientGuiBridge.openComputer(player);
             return true;
         }
-        if (player.onServer()) {
-            PlayerInteractionTracker.markComputer(player, world.getTotalWorldTime(), x, y, z);
-            if (tryApplyPendingSong(world, player)) {
-                return true;
-            }
-            player.addChatMessage("message.netmusic.computer.hint");
+        if (player instanceof ServerPlayer serverPlayer) {
+            openMenu(serverPlayer, x, y, z);
         }
         return true;
     }
 
-    private static boolean tryApplyPendingSong(World world, EntityPlayer player) {
-        PendingSongTracker.PendingSong pending = PendingSongTracker.getPendingForSource(
-                player, PendingSongTracker.Source.COMPUTER, world.getTotalWorldTime(), 20L * 120L);
-        if (pending == null) {
-            return false;
+    private static void openMenu(ServerPlayer player, int x, int y, int z) {
+        ComputerMenu menu = new ComputerMenu(player);
+        if (player.openContainer != player.inventoryContainer) {
+            player.closeScreen();
         }
 
-        MenuSongWriter.WriteResult result = MenuSongWriter.tryWriteToSourceMenu(player, PendingSongTracker.Source.COMPUTER, pending.songInfo);
-        if (result.isSuccess()) {
-            PendingSongTracker.clear(player);
-            player.addChatMessage("message.netmusic.computer.applied");
-            return true;
-        }
-        if (result.isFailure()) {
-            player.addChatMessage(result.failureKey);
-            return true;
-        }
+        int windowId = ServerWindowIdHelper.nextWindowId(player);
+        player.openContainer = menu;
+        player.openContainer.windowId = windowId;
 
-        if (!MusicCdWriteHelper.writeSongToPlayerCd(player, pending.songInfo)) {
-            player.addChatMessage("message.netmusic.music_cd.need_writable_cd");
-            return true;
-        }
-
-        PendingSongTracker.clear(player);
-        player.addChatMessage("message.netmusic.computer.applied");
-        return true;
+        NetworkHandler.sendToClientPlayer(
+                new OpenMenuMessage(OpenMenuMessage.Type.COMPUTER, windowId, x, y, z),
+                player
+        );
+        player.openContainer.addCraftingToCrafters(player);
     }
 
     @Override

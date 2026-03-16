@@ -1,40 +1,44 @@
 package com.github.tartaricacid.netmusic.client.gui;
 
 import com.github.tartaricacid.netmusic.client.network.ClientNetWorkHandler;
+import com.github.tartaricacid.netmusic.inventory.CDBurnerMenu;
 import com.github.tartaricacid.netmusic.item.ItemMusicCD;
 import com.github.tartaricacid.netmusic.network.message.SetMusicIDMessage;
 import com.github.tartaricacid.netmusic.util.CDBurnerInputParser;
 import com.github.tartaricacid.netmusic.util.ScreenSubmitResult;
 import net.minecraft.GuiButton;
-import net.minecraft.GuiScreen;
+import net.minecraft.GuiContainer;
 import net.minecraft.GuiTextField;
 import net.minecraft.ResourceLocation;
 import net.minecraft.StatCollector;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.input.Keyboard;
 
-public class GuiCDBurnerScreen extends GuiScreen {
+public class GuiCDBurnerScreen extends GuiContainer {
     private static final ResourceLocation BG = new ResourceLocation("netmusic", "textures/gui/cd_burner.png");
-    private static final int GUI_WIDTH = 176;
-    private static final int GUI_HEIGHT = 176;
+    private final CDBurnerMenu menu;
 
     private GuiTextField idField;
     private boolean readOnly;
     private String tipsKey = "";
-    private int left;
-    private int top;
+
+    public GuiCDBurnerScreen(CDBurnerMenu menu) {
+        super(menu);
+        this.menu = menu;
+        this.xSize = 176;
+        this.ySize = 176;
+    }
 
     @Override
     public void initGui() {
+        super.initGui();
         Keyboard.enableRepeatEvents(true);
         this.buttonList.clear();
-        this.left = (this.width - GUI_WIDTH) / 2;
-        this.top = (this.height - GUI_HEIGHT) / 2;
 
         String prevText = this.idField != null ? this.idField.getText() : "";
         boolean focused = this.idField != null && this.idField.isFocused();
 
-        this.idField = new GuiTextField(this.fontRenderer, left + 12, top + 18, 132, 16) {
+        this.idField = new GuiTextField(this.fontRenderer, this.guiLeft + 12, this.guiTop + 18, 132, 16) {
             @Override
             public void writeText(String text) {
                 super.writeText(CDBurnerInputParser.normalizeInput(text));
@@ -46,13 +50,14 @@ public class GuiCDBurnerScreen extends GuiScreen {
         this.idField.setFocused(true);
         this.idField.setFocused(focused || prevText.isEmpty());
 
-        this.buttonList.add(new GuiButton(0, left + 7, top + 35, 55, 18,
+        this.buttonList.add(new GuiButton(0, this.guiLeft + 7, this.guiTop + 35, 55, 18,
                 StatCollector.translateToLocal("gui.netmusic.cd_burner.craft")));
-        this.buttonList.add(new GuiButton(1, left + 66, top + 34, 80, 20, getReadOnlyText()));
+        this.buttonList.add(new GuiButton(1, this.guiLeft + 66, this.guiTop + 34, 80, 20, getReadOnlyText()));
     }
 
     @Override
     public void onGuiClosed() {
+        super.onGuiClosed();
         Keyboard.enableRepeatEvents(false);
     }
 
@@ -76,6 +81,12 @@ public class GuiCDBurnerScreen extends GuiScreen {
     }
 
     private void submit() {
+        String writeFailure = this.menu.getWriteFailureKey();
+        if (writeFailure != null && !"gui.netmusic.cd_burner.get_info_error".equals(writeFailure)) {
+            this.tipsKey = writeFailure;
+            return;
+        }
+
         ScreenSubmitResult result = CDBurnerInputParser.parseSongInfo(this.idField.getText(), this.readOnly);
         if (!result.isSuccess()) {
             this.tipsKey = result.getMessageKey();
@@ -86,14 +97,13 @@ public class GuiCDBurnerScreen extends GuiScreen {
             this.tipsKey = "gui.netmusic.cd_burner.get_info_error";
             return;
         }
+        this.tipsKey = "";
         ClientNetWorkHandler.sendToServer(new SetMusicIDMessage(SetMusicIDMessage.Source.CD_BURNER, songInfo));
-        this.tipsKey = "message.netmusic.cd_burner.applied";
     }
 
     @Override
     protected void keyTyped(char c, int keyCode) {
-        if (keyCode == Keyboard.KEY_ESCAPE || (keyCode == this.mc.gameSettings.keyBindInventory.keyCode && !this.idField.isFocused())) {
-            this.mc.displayGuiScreen(null);
+        if (keyCode == this.mc.gameSettings.keyBindInventory.keyCode && this.idField.isFocused()) {
             return;
         }
         if (this.idField.textboxKeyTyped(c, keyCode)) {
@@ -115,20 +125,27 @@ public class GuiCDBurnerScreen extends GuiScreen {
     }
 
     @Override
-    public void drawScreen(int mouseX, int mouseY, float partialTicks) {
-        this.drawDefaultBackground();
+    protected void drawGuiContainerForegroundLayer(int mouseX, int mouseY) {
+    }
+
+    @Override
+    protected void drawGuiContainerBackgroundLayer(float partialTicks, int mouseX, int mouseY) {
         this.mc.getTextureManager().bindTexture(BG);
         GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
-        this.drawTexturedModalRect(left, top, 0, 0, GUI_WIDTH, GUI_HEIGHT);
+        this.drawTexturedModalRect(this.guiLeft, this.guiTop, 0, 0, this.xSize, this.ySize);
 
         this.idField.drawTextBox();
         if (this.idField.getText().trim().isEmpty() && !this.idField.isFocused()) {
-            this.fontRenderer.drawStringWithShadow(StatCollector.translateToLocal("gui.netmusic.cd_burner.id.tips"), left + 12, top + 18, 0xA0A0A0);
+            this.fontRenderer.drawStringWithShadow(StatCollector.translateToLocal("gui.netmusic.cd_burner.id.tips"), this.guiLeft + 12, this.guiTop + 18, 0xA0A0A0);
         }
 
         if (this.tipsKey != null && !this.tipsKey.isEmpty()) {
-            this.fontRenderer.drawSplitString(StatCollector.translateToLocal(this.tipsKey), left + 8, top + 57, 135, 0xCF0000);
+            this.fontRenderer.drawSplitString(StatCollector.translateToLocal(this.tipsKey), this.guiLeft + 8, this.guiTop + 57, 135, 0xCF0000);
         }
+    }
+
+    @Override
+    public void drawScreen(int mouseX, int mouseY, float partialTicks) {
         super.drawScreen(mouseX, mouseY, partialTicks);
     }
 }

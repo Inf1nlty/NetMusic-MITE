@@ -149,9 +149,12 @@ final class BlockbenchModelRenderer {
         }
     }
 
-    private static void rotateUv(float[] us, float[] vs, int rotation) {
+    private static void rotateUv(float[] us, float[] vs, int rotation)
+    {
         int turns = ((rotation / 90) % 4 + 4) % 4;
-        for (int i = 0; i < turns; i++) {
+
+        for (int i = 0; i < turns; i++)
+        {
             float u = us[3];
             float v = vs[3];
             us[3] = us[2];
@@ -165,7 +168,8 @@ final class BlockbenchModelRenderer {
         }
     }
 
-    private static void rotateElement(float[] v, BlockbenchModel.Rotation rotation) {
+    private static void rotateElement(float[] v, BlockbenchModel.Rotation rotation)
+    {
         if (rotation == null || Math.abs(rotation.angle) < 1.0e-5F) {
             return;
         }

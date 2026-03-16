@@ -10,7 +10,7 @@ import org.lwjgl.opengl.GL11;
 public class ComputerTileEntityRenderer extends TileEntitySpecialRenderer {
     private static final BlockbenchModel MODEL = BlockbenchModel.load(
             "assets/netmusic/models/block/computer.json",
-            new net.minecraft.ResourceLocation("netmusic:textures/blocks/computer.png"),
+            new net.minecraft.ResourceLocation("netmusic:textures/block/computer.png"),
             64,
             64
     );
@@ -26,7 +26,9 @@ public class ComputerTileEntityRenderer extends TileEntitySpecialRenderer {
 
     public static void renderModelAsItem(int metadata) {
         GL11.glPushMatrix();
+        GL11.glRotatef(90.0F, 0.0F, 1.0F, 0.0F);
         GL11.glTranslatef(-0.5F, -0.5F, -0.5F);
+        GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
         // Match upstream item pose: WEST-facing regardless of item metadata.
         renderModel(1, null);
         GL11.glPopMatrix();
@@ -38,6 +40,7 @@ public class ComputerTileEntityRenderer extends TileEntitySpecialRenderer {
             return;
         }
         mc.getTextureManager().bindTexture(MODEL.texture);
+        GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
         Tessellator t = Tessellator.instance;
         double ox = t.xOffset;
         double oy = t.yOffset;

@@ -42,7 +42,6 @@ final class BlockbenchModelRenderer {
         float v0 = face.v0 / model.textureHeight;
         float u1 = face.u1 / model.textureWidth;
         float v1 = face.v1 / model.textureHeight;
-
         float[] us = new float[]{u0, u1, u1, u0};
         float[] vs = new float[]{v0, v0, v1, v1};
         rotateUv(us, vs, face.rotation);

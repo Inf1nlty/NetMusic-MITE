@@ -49,8 +49,13 @@ final class BlockbenchModel {
                     float[] to = readVec3(element.getAsJsonArray("to"));
                     Rotation rotation = readRotation(element.getAsJsonObject("rotation"));
                     Face[] faces = readFaces(element.getAsJsonObject("faces"));
-                    elements.add(new Element(from[0] / 16.0F, from[1] / 16.0F, from[2] / 16.0F,
-                            to[0] / 16.0F, to[1] / 16.0F, to[2] / 16.0F, rotation, faces));
+                    float minX = Math.min(from[0], to[0]) / 16.0F;
+                    float minY = Math.min(from[1], to[1]) / 16.0F;
+                    float minZ = Math.min(from[2], to[2]) / 16.0F;
+                    float maxX = Math.max(from[0], to[0]) / 16.0F;
+                    float maxY = Math.max(from[1], to[1]) / 16.0F;
+                    float maxZ = Math.max(from[2], to[2]) / 16.0F;
+                    elements.add(new Element(minX, minY, minZ, maxX, maxY, maxZ, rotation, faces));
                 }
             }
             return new BlockbenchModel(texture, texW, texH, elements);

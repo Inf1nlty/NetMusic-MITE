@@ -2,6 +2,7 @@ package com.github.tartaricacid.netmusic.inventory;
 
 import com.github.tartaricacid.netmusic.init.InitItems;
 import com.github.tartaricacid.netmusic.item.ItemMusicCD;
+import com.github.tartaricacid.netmusic.tileentity.TileEntityCDBurner;
 import com.github.tartaricacid.netmusic.util.SongInfoHelper;
 import net.minecraft.Container;
 import net.minecraft.EntityPlayer;
@@ -15,13 +16,13 @@ public class CDBurnerMenu extends Container {
 
     private ItemMusicCD.SongInfo songInfo;
     private boolean closed;
+    private final TileEntityCDBurner tileEntity;
 
-    public CDBurnerMenu(EntityPlayer player) {
+    public CDBurnerMenu(EntityPlayer player, TileEntityCDBurner tileEntity) {
         super(player);
-
-        IInventory inputInv = new OneSlotInventory();
-        IInventory outputInv = new OneSlotInventory();
-
+        this.tileEntity = tileEntity;
+        IInventory inputInv = new OneSlotInventory(tileEntity, true);
+        IInventory outputInv = new OneSlotInventory(tileEntity, false);
         this.input = this.addSlotToContainer(new Slot(inputInv, 0, 147, 14) {
             @Override
             public boolean isItemValid(ItemStack stack) {
@@ -57,6 +58,8 @@ public class CDBurnerMenu extends Container {
         ItemStack out = output.getStack();
         input.putStack(null);
         output.putStack(null);
+        tileEntity.setInput(null);
+        tileEntity.setOutput(null);
         giveItemToPlayer(player, in);
         giveItemToPlayer(player, out);
     }
@@ -71,6 +74,7 @@ public class CDBurnerMenu extends Container {
 
     public void setSongInfo(ItemMusicCD.SongInfo setSongInfo) {
         this.songInfo = SongInfoHelper.sanitize(setSongInfo);
+        tileEntity.setSongInfo(this.songInfo);
         this.tryWriteSong(this.songInfo);
     }
 
@@ -79,16 +83,15 @@ public class CDBurnerMenu extends Container {
             return "gui.netmusic.cd_burner.get_info_error";
         }
         this.songInfo = SongInfoHelper.sanitize(setSongInfo);
+        tileEntity.setSongInfo(this.songInfo);
         String failure = this.getWriteFailureKey();
         if (failure != null) {
             return failure;
         }
-
         ItemStack inputStack = this.input.getStack();
         if (inputStack == null) {
             return "gui.netmusic.cd_burner.cd_is_empty";
         }
-
         ItemStack itemStack = inputStack.copy();
         itemStack.stackSize = 1;
         inputStack.stackSize -= 1;
@@ -97,6 +100,8 @@ public class CDBurnerMenu extends Container {
         }
         ItemMusicCD.setSongInfo(this.songInfo, itemStack);
         this.output.putStack(itemStack);
+        tileEntity.setInput(this.input.getStack());
+        tileEntity.setOutput(this.output.getStack());
         return null;
     }
 
@@ -136,45 +141,39 @@ public class CDBurnerMenu extends Container {
 
 
     private static class OneSlotInventory implements IInventory {
-        private ItemStack stack;
-
-        @Override
-        public int getSizeInventory() {
-            return 1;
+        private final TileEntityCDBurner tileEntity;
+        private final boolean isInput;
+        public OneSlotInventory(TileEntityCDBurner tileEntity, boolean isInput) {
+            this.tileEntity = tileEntity;
+            this.isInput = isInput;
         }
-
+        @Override
+        public int getSizeInventory() { return 1; }
         @Override
         public ItemStack getStackInSlot(int i) {
-            return this.stack;
+            return isInput ? tileEntity.getInput() : tileEntity.getOutput();
         }
-
         @Override
         public ItemStack decrStackSize(int i, int amount) {
-            if (this.stack == null) {
-                return null;
+            ItemStack stack = getStackInSlot(i);
+            if (stack == null) return null;
+            if (stack.stackSize <= amount) {
+                setInventorySlotContents(i, null);
+                return stack;
             }
-            if (this.stack.stackSize <= amount) {
-                ItemStack result = this.stack;
-                this.stack = null;
-                return result;
-            }
-            ItemStack split = this.stack.splitStack(amount);
-            if (this.stack.stackSize <= 0) {
-                this.stack = null;
-            }
+            ItemStack split = stack.splitStack(amount);
+            if (stack.stackSize <= 0) setInventorySlotContents(i, null);
             return split;
         }
-
         @Override
         public ItemStack getStackInSlotOnClosing(int i) {
-            ItemStack result = this.stack;
-            this.stack = null;
+            ItemStack result = getStackInSlot(i);
+            setInventorySlotContents(i, null);
             return result;
         }
-
         @Override
         public void setInventorySlotContents(int i, ItemStack itemStack) {
-            this.stack = itemStack;
+            if (isInput) tileEntity.setInput(itemStack); else tileEntity.setOutput(itemStack);
         }
 
         @Override
@@ -216,7 +215,7 @@ public class CDBurnerMenu extends Container {
 
         @Override
         public void destroyInventory() {
-            this.stack = null;
+            // No-op: nothing to destroy, method required by interface
         }
     }
 }

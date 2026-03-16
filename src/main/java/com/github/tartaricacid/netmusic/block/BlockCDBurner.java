@@ -1,5 +1,6 @@
 package com.github.tartaricacid.netmusic.block;
 
+import com.github.tartaricacid.netmusic.client.renderer.RenderTypes;
 import com.github.tartaricacid.netmusic.creativetab.NetMusicCreativeTab;
 import com.github.tartaricacid.netmusic.util.ClientGuiBridge;
 import com.github.tartaricacid.netmusic.util.MenuSongWriter;
@@ -7,9 +8,11 @@ import com.github.tartaricacid.netmusic.util.MusicCdWriteHelper;
 import com.github.tartaricacid.netmusic.util.PendingSongTracker;
 import com.github.tartaricacid.netmusic.util.PlayerInteractionTracker;
 import net.minecraft.*;
+import net.minecraft.TileEntity;
+import com.github.tartaricacid.netmusic.tileentity.TileEntityCDBurner;
 import net.xiaoyu233.fml.reload.utils.IdUtil;
 
-public class BlockCDBurner extends BlockDirectional {
+public class BlockCDBurner extends BlockDirectionalWithTileEntity {
 
     public BlockCDBurner() {
         this(IdUtil.getNextBlockID());
@@ -122,4 +125,15 @@ public class BlockCDBurner extends BlockDirectional {
     public boolean isPortable(World world, EntityLivingBase entity_living_base, int x, int y, int z) {
         return true;
     }
+
+    @Override
+    public TileEntity createNewTileEntity(World world) {
+        return new TileEntityCDBurner();
+    }
+
+    @Override
+    public int getRenderType() {
+        return RenderTypes.cdBurnerRenderType;
+    }
+
 }

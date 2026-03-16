@@ -53,8 +53,6 @@ public class BlockCDBurner extends BlockDirectional {
                 return true;
             }
             player.addChatMessage("message.netmusic.cd_burner.hint");
-            // Temporary compatibility bridge: keeps right-click interaction alive until custom Container migration is finished.
-            player.displayGUIWorkbench(x, y, z);
         }
         return true;
     }

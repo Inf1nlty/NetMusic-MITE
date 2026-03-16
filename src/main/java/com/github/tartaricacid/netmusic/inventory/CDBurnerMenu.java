@@ -2,6 +2,7 @@ package com.github.tartaricacid.netmusic.inventory;
 
 import com.github.tartaricacid.netmusic.init.InitItems;
 import com.github.tartaricacid.netmusic.item.ItemMusicCD;
+import com.github.tartaricacid.netmusic.util.SongInfoHelper;
 import net.minecraft.Container;
 import net.minecraft.EntityPlayer;
 import net.minecraft.IInventory;
@@ -69,7 +70,7 @@ public class CDBurnerMenu extends Container {
     }
 
     public void setSongInfo(ItemMusicCD.SongInfo setSongInfo) {
-        this.songInfo = copySongInfo(setSongInfo);
+        this.songInfo = SongInfoHelper.sanitize(setSongInfo);
         this.tryWriteSong(this.songInfo);
     }
 
@@ -77,7 +78,7 @@ public class CDBurnerMenu extends Container {
         if (this.closed) {
             return "gui.netmusic.cd_burner.get_info_error";
         }
-        this.songInfo = copySongInfo(setSongInfo);
+        this.songInfo = SongInfoHelper.sanitize(setSongInfo);
         String failure = this.getWriteFailureKey();
         if (failure != null) {
             return failure;
@@ -122,7 +123,7 @@ public class CDBurnerMenu extends Container {
     }
 
     public ItemMusicCD.SongInfo getSongInfo() {
-        return copySongInfo(this.songInfo);
+        return SongInfoHelper.sanitize(this.songInfo);
     }
 
     public Slot getInput() {
@@ -133,23 +134,6 @@ public class CDBurnerMenu extends Container {
         return output;
     }
 
-    private static ItemMusicCD.SongInfo copySongInfo(ItemMusicCD.SongInfo source) {
-        if (source == null) {
-            return null;
-        }
-        ItemMusicCD.SongInfo copy = new ItemMusicCD.SongInfo();
-        copy.songUrl = source.songUrl;
-        copy.songName = source.songName;
-        copy.songTime = source.songTime;
-        copy.transName = source.transName;
-        copy.vip = source.vip;
-        copy.readOnly = source.readOnly;
-        copy.artists.clear();
-        if (source.artists != null) {
-            copy.artists.addAll(source.artists);
-        }
-        return copy;
-    }
 
     private static class OneSlotInventory implements IInventory {
         private ItemStack stack;

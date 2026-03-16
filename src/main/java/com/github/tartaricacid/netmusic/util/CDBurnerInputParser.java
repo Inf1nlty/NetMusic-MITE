@@ -53,8 +53,8 @@ public final class CDBurnerInputParser {
         if (djMatcher.find()) {
             try {
                 long djId = Long.parseLong(djMatcher.group(1));
-                ItemMusicCD.SongInfo song = MusicListManage.getDjSong(djId);
-                if (!isValidSong(song)) {
+                ItemMusicCD.SongInfo song = SongInfoHelper.sanitize(MusicListManage.getDjSong(djId));
+                if (song == null) {
                     return ScreenSubmitResult.fail("gui.netmusic.cd_burner.get_info_error");
                 }
                 song.readOnly = readOnly;
@@ -71,8 +71,8 @@ public final class CDBurnerInputParser {
 
         try {
             long id = Long.parseLong(input);
-            ItemMusicCD.SongInfo song = MusicListManage.get163Song(id);
-            if (!isValidSong(song)) {
+            ItemMusicCD.SongInfo song = SongInfoHelper.sanitize(MusicListManage.get163Song(id));
+            if (song == null) {
                 return ScreenSubmitResult.fail("gui.netmusic.cd_burner.get_info_error");
             }
             song.readOnly = readOnly;
@@ -83,8 +83,5 @@ public final class CDBurnerInputParser {
         }
     }
 
-    private static boolean isValidSong(ItemMusicCD.SongInfo song) {
-        return song != null && StringUtils.isNotBlank(song.songUrl) && StringUtils.isNotBlank(song.songName);
-    }
 }
 

@@ -17,6 +17,7 @@ import net.minecraft.Slot;
 import net.minecraft.StatCollector;
 import net.xiaoyu233.fml.reload.utils.IdUtil;
 import org.apache.commons.lang3.StringUtils;
+import com.github.tartaricacid.netmusic.util.SongInfoHelper;
 
 import java.util.List;
 
@@ -42,13 +43,14 @@ public class ItemMusicCD extends Item {
     }
 
     public static ItemStack setSongInfo(SongInfo info, ItemStack stack) {
-        if (stack != null) {
+        SongInfo sanitized = SongInfoHelper.sanitize(info);
+        if (stack != null && sanitized != null) {
             NBTTagCompound tag = stack.getTagCompound();
             if (tag == null) {
                 tag = new NBTTagCompound();
             }
             NBTTagCompound songInfoTag = new NBTTagCompound();
-            SongInfo.serializeNBT(info, songInfoTag);
+            SongInfo.serializeNBT(sanitized, songInfoTag);
             tag.setCompoundTag(SONG_INFO_TAG, songInfoTag);
             stack.setTagCompound(tag);
         }
@@ -188,6 +190,9 @@ public class ItemMusicCD extends Item {
         }
 
         public static void serializeNBT(SongInfo info, NBTTagCompound tag) {
+            if (info == null || tag == null) {
+                return;
+            }
             tag.setString("url", info.songUrl);
             tag.setString("name", info.songName);
             tag.setInteger("time", info.songTime);

@@ -50,7 +50,7 @@ public final class ComputerInputParser {
             if (!isSupportedAudioPath(urlText)) {
                 return ScreenSubmitResult.fail("gui.netmusic.computer.url.not_supported");
             }
-            return ScreenSubmitResult.success(new ItemMusicCD.SongInfo(urlText, rawName.trim(), time, readOnly));
+            return createResult(urlText, rawName.trim(), time, readOnly);
         }
 
         if (URL_FILE_REG.matcher(urlText).matches()) {
@@ -63,7 +63,7 @@ public final class ComputerInputParser {
             }
             try {
                 URL url = file.toURI().toURL();
-                return ScreenSubmitResult.success(new ItemMusicCD.SongInfo(url.toString(), rawName.trim(), time, readOnly));
+                return createResult(url.toString(), rawName.trim(), time, readOnly);
             } catch (MalformedURLException e) {
                 NetMusic.LOGGER.error("Failed to convert local path to URL: {}", urlText, e);
                 return ScreenSubmitResult.fail("gui.netmusic.computer.url.error");
@@ -79,5 +79,13 @@ public final class ComputerInputParser {
         }
         String lower = path.toLowerCase();
         return lower.endsWith(".mp3") || lower.endsWith(".flac");
+    }
+
+    private static ScreenSubmitResult createResult(String url, String name, int time, boolean readOnly) {
+        ItemMusicCD.SongInfo songInfo = new ItemMusicCD.SongInfo(url, name, time, readOnly);
+        ItemMusicCD.SongInfo sanitized = SongInfoHelper.sanitize(songInfo);
+        return sanitized != null
+                ? ScreenSubmitResult.success(sanitized)
+                : ScreenSubmitResult.fail("gui.netmusic.computer.url.error");
     }
 }

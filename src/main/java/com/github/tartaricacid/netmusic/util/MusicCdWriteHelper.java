@@ -4,15 +4,14 @@ import com.github.tartaricacid.netmusic.init.InitItems;
 import com.github.tartaricacid.netmusic.item.ItemMusicCD;
 import net.minecraft.EntityPlayer;
 import net.minecraft.ItemStack;
-import org.apache.commons.lang3.StringUtils;
 
 public final class MusicCdWriteHelper {
     private MusicCdWriteHelper() {
     }
 
     public static boolean writeSongToPlayerCd(EntityPlayer player, ItemMusicCD.SongInfo songInfo) {
-        ItemMusicCD.SongInfo copiedSongInfo = copySongInfo(songInfo);
-        if (player == null || !isValidSong(copiedSongInfo) || player.inventory == null || InitItems.MUSIC_CD == null) {
+        ItemMusicCD.SongInfo copiedSongInfo = SongInfoHelper.sanitize(songInfo);
+        if (player == null || copiedSongInfo == null || player.inventory == null || InitItems.MUSIC_CD == null) {
             return false;
         }
 
@@ -49,8 +48,8 @@ public final class MusicCdWriteHelper {
     }
 
     public static ItemStack createMusicCdFromSong(ItemMusicCD.SongInfo songInfo) {
-        ItemMusicCD.SongInfo copiedSongInfo = copySongInfo(songInfo);
-        if (!isValidSong(copiedSongInfo) || InitItems.MUSIC_CD == null) {
+        ItemMusicCD.SongInfo copiedSongInfo = SongInfoHelper.sanitize(songInfo);
+        if (copiedSongInfo == null || InitItems.MUSIC_CD == null) {
             return null;
         }
         ItemStack musicCd = new ItemStack(InitItems.MUSIC_CD, 1);
@@ -100,28 +99,4 @@ public final class MusicCdWriteHelper {
         return existing == null || !existing.readOnly;
     }
 
-    private static boolean isValidSong(ItemMusicCD.SongInfo songInfo) {
-        return songInfo != null
-                && StringUtils.isNotBlank(songInfo.songUrl)
-                && StringUtils.isNotBlank(songInfo.songName)
-                && songInfo.songTime > 0;
-    }
-
-    private static ItemMusicCD.SongInfo copySongInfo(ItemMusicCD.SongInfo source) {
-        if (source == null) {
-            return null;
-        }
-        ItemMusicCD.SongInfo copy = new ItemMusicCD.SongInfo();
-        copy.songUrl = source.songUrl;
-        copy.songName = source.songName;
-        copy.songTime = source.songTime;
-        copy.transName = source.transName;
-        copy.vip = source.vip;
-        copy.readOnly = source.readOnly;
-        copy.artists.clear();
-        if (source.artists != null) {
-            copy.artists.addAll(source.artists);
-        }
-        return copy;
-    }
 }

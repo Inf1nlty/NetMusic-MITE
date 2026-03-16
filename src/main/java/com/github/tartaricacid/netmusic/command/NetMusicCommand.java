@@ -14,6 +14,7 @@ import com.github.tartaricacid.netmusic.util.PendingSongTracker;
 import com.github.tartaricacid.netmusic.util.PlayerInteractionTracker;
 import com.github.tartaricacid.netmusic.util.ComputerInputParser;
 import com.github.tartaricacid.netmusic.util.ScreenSubmitResult;
+import com.github.tartaricacid.netmusic.util.SongInfoHelper;
 import net.minecraft.ChatMessageComponent;
 import net.minecraft.CommandBase;
 import net.minecraft.ICommandSender;
@@ -224,12 +225,13 @@ public class NetMusicCommand extends CommandBase {
     }
 
     private static void giveSongCdDirect(ServerPlayer player, ICommandSender sender, ItemMusicCD.SongInfo songInfo, String successKey) {
-        if (songInfo == null) {
+        ItemMusicCD.SongInfo safeSongInfo = SongInfoHelper.sanitize(songInfo);
+        if (safeSongInfo == null) {
             sender.sendChatToPlayer(ChatMessageComponent.createFromText(
                     StatCollector.translateToLocal("command.netmusic.music_cd.no_song_info")));
             return;
         }
-        if (!MusicCdWriteHelper.giveSongCdToPlayer(player, songInfo)) {
+        if (!MusicCdWriteHelper.giveSongCdToPlayer(player, safeSongInfo)) {
             sender.sendChatToPlayer(ChatMessageComponent.createFromText(
                     StatCollector.translateToLocal("command.netmusic.music_cd.direct_give_fail")));
             return;
@@ -240,14 +242,15 @@ public class NetMusicCommand extends CommandBase {
 
     private static void applySongForSource(ServerPlayer player, ICommandSender sender, ItemMusicCD.SongInfo songInfo,
                                            PendingSongTracker.Source source, String needInteractionKey, String successKey) {
-        if (songInfo == null) {
+        ItemMusicCD.SongInfo safeSongInfo = SongInfoHelper.sanitize(songInfo);
+        if (safeSongInfo == null) {
             sender.sendChatToPlayer(ChatMessageComponent.createFromText(
                     StatCollector.translateToLocal("command.netmusic.music_cd.no_song_info")));
             return;
         }
 
-        int openMenuResult = setSongToOpenMenu(player, sender, songInfo);
-        if (openMenuResult == 1 || writeSongWithSourceInteractionCheck(player, sender, songInfo, source)) {
+        int openMenuResult = setSongToOpenMenu(player, sender, safeSongInfo);
+        if (openMenuResult == 1 || writeSongWithSourceInteractionCheck(player, sender, safeSongInfo, source)) {
             PendingSongTracker.clear(player);
             sender.sendChatToPlayer(ChatMessageComponent.createFromText(StatCollector.translateToLocal(successKey)));
             return;
@@ -258,13 +261,13 @@ public class NetMusicCommand extends CommandBase {
 
 
         long now = player.worldObj == null ? 0L : player.worldObj.getTotalWorldTime();
-        PendingSongTracker.setPending(player, source, songInfo, now);
+        PendingSongTracker.setPending(player, source, safeSongInfo, now);
         sender.sendChatToPlayer(ChatMessageComponent.createFromText(
                 StatCollector.translateToLocalFormatted("command.netmusic.music_cd.pending.saved",
                         StatCollector.translateToLocal(source == PendingSongTracker.Source.CD_BURNER
                                 ? "command.netmusic.source.cd_burner"
                                 : "command.netmusic.source.computer"),
-                        songInfo.songName == null ? "unknown" : songInfo.songName)));
+                        safeSongInfo.songName == null ? "unknown" : safeSongInfo.songName)));
         sender.sendChatToPlayer(ChatMessageComponent.createFromText(StatCollector.translateToLocal(needInteractionKey)));
     }
 

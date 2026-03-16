@@ -53,8 +53,6 @@ public class BlockComputer extends BlockDirectional {
                 return true;
             }
             player.addChatMessage("message.netmusic.computer.hint");
-            // Temporary compatibility bridge: keep interaction alive until legacy custom container wiring is finished.
-            player.displayGUIWorkbench(x, y, z);
         }
         return true;
     }

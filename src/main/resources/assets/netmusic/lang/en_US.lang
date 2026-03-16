@@ -1,6 +1,6 @@
 ﻿itemGroup.Net Music=Net Music
 
-item.netmusic:music_cd.name=Music CD
+item.music_cd.name=Music CD
 
 tile.music_player.name=Music Player
 tile.cd_burner.name=CD Burner

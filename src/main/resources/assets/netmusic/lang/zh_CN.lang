@@ -1,6 +1,6 @@
 ﻿itemGroup.Net Music=网络音乐机
 
-item.netmusic:music_cd.name=音乐唱片
+item.music_cd.name=音乐唱片
 
 tile.music_player.name=唱片机
 tile.cd_burner.name=唱片刻录机

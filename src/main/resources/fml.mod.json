@@ -32,5 +32,8 @@
       "com.github.tartaricacid.netmusic.client.NetMusicClient"
     ]
   },
+  "mixins": [
+    "netmusic.mixins.json"
+  ],
   "accessWidener" : "netmusic.accesswidener"
 }

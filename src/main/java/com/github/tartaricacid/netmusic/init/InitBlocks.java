@@ -15,13 +15,13 @@ public class InitBlocks {
 
     private static void ensureInitialized() {
         if (MUSIC_PLAYER == null) {
-            MUSIC_PLAYER = new BlockMusicPlayer().setUnlocalizedName("netmusic:music_player");
+            MUSIC_PLAYER = new BlockMusicPlayer().setUnlocalizedName("music_player");
         }
         if (CD_BURNER == null) {
-            CD_BURNER = new BlockCDBurner().setUnlocalizedName("netmusic:cd_burner");
+            CD_BURNER = new BlockCDBurner().setUnlocalizedName("cd_burner");
         }
         if (COMPUTER == null) {
-            COMPUTER = new BlockComputer().setUnlocalizedName("netmusic:computer");
+            COMPUTER = new BlockComputer().setUnlocalizedName("computer");
         }
     }
 

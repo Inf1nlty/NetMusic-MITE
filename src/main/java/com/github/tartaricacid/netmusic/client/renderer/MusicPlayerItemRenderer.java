@@ -1,14 +1,13 @@
 package com.github.tartaricacid.netmusic.client.renderer;
 
-public class MusicPlayerItemRenderer {
-    private int renderCount;
+import net.minecraft.Block;
+import net.minecraft.RenderBlocks;
 
-    public void render() {
-        this.renderCount++;
-        MusicPlayerRenderer.INSTANCE.renderMusicPlayer();
+public final class MusicPlayerItemRenderer {
+    private MusicPlayerItemRenderer() {
     }
 
-    public int getRenderCount() {
-        return this.renderCount;
+    public static void render(RenderBlocks renderer, Block block, int metadata) {
+        MusicPlayerRenderer.renderInventoryBlock(renderer, block, metadata);
     }
 }

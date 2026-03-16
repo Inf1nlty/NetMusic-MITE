@@ -31,7 +31,6 @@ public class BlockMusicPlayer extends BlockDirectionalWithTileEntity {
         this.setHardness(0.5F);
         this.setStepSound(soundWoodFootstep);
         this.setCreativeTab(NetMusicCreativeTab.TAB);
-        this.setTextureName("netmusic:block/music_player");
         this.setBlockBoundsForAllThreads(0.125, 0.0, 0.125, 0.875, 0.375, 0.875);
     }
 

@@ -1,37 +1,76 @@
 package com.github.tartaricacid.netmusic.client.renderer;
 
 import com.github.tartaricacid.netmusic.client.model.ModelMusicPlayer;
-import com.github.tartaricacid.netmusic.tileentity.TileEntityMusicPlayer;
+import net.minecraft.Block;
+import net.minecraft.IBlockAccess;
+import net.minecraft.Icon;
+import net.minecraft.RenderBlocks;
+import net.minecraft.Tessellator;
+import org.lwjgl.opengl.GL11;
 
-import java.util.Map;
-
-public class MusicPlayerRenderer {
+public final class MusicPlayerRenderer {
     public static final MusicPlayerRenderer INSTANCE = new MusicPlayerRenderer();
-    private String lastRenderSummary = "";
 
-    public void render(TileEntityMusicPlayer tileEntity) {
-        if (tileEntity == null) {
-            this.lastRenderSummary = "tile=null";
+    private MusicPlayerRenderer() {
+    }
+
+    public static boolean renderWorldBlock(RenderBlocks renderer, Block block, IBlockAccess blockAccess, int x, int y, int z) {
+        if (renderer == null || block == null) {
+            return false;
+        }
+
+        // Draw each cuboid slice from models/block/music_player.json.
+        for (ModelMusicPlayer.Cuboid cuboid : ModelMusicPlayer.getCuboids()) {
+            renderer.setRenderBounds(cuboid.minX, cuboid.minY, cuboid.minZ, cuboid.maxX, cuboid.maxY, cuboid.maxZ);
+            renderer.renderStandardBlock(block, x, y, z);
+        }
+        return true;
+    }
+
+    public static void renderInventoryBlock(RenderBlocks renderer, Block block, int metadata) {
+        if (renderer == null || block == null) {
             return;
         }
-        Map<String, float[]> parts = ModelMusicPlayer.getParts();
-        if (parts.isEmpty()) {
-            ModelMusicPlayer.createBodyLayer();
-            parts = ModelMusicPlayer.getParts();
-        }
-        this.lastRenderSummary = "parts=" + parts.size() + ",play=" + tileEntity.isPlay() + ",time=" + tileEntity.getCurrentTime();
-    }
 
-    public void renderMusicPlayer() {
-        Map<String, float[]> parts = ModelMusicPlayer.getParts();
-        if (parts.isEmpty()) {
-            ModelMusicPlayer.createBodyLayer();
-            parts = ModelMusicPlayer.getParts();
-        }
-        this.lastRenderSummary = "item_parts=" + parts.size();
-    }
+        Icon icon = block.getIcon(0, metadata);
+        Tessellator tessellator = Tessellator.instance;
+        GL11.glPushMatrix();
+        GL11.glTranslatef(-0.5F, -0.5F, -0.5F);
 
-    public String getLastRenderSummary() {
-        return this.lastRenderSummary;
+        for (ModelMusicPlayer.Cuboid cuboid : ModelMusicPlayer.getCuboids()) {
+            renderer.setRenderBounds(cuboid.minX, cuboid.minY, cuboid.minZ, cuboid.maxX, cuboid.maxY, cuboid.maxZ);
+
+            tessellator.startDrawingQuads();
+            tessellator.setNormal(0.0F, -1.0F, 0.0F);
+            renderer.renderFaceYNeg(block, 0.0D, 0.0D, 0.0D, icon);
+            tessellator.draw();
+
+            tessellator.startDrawingQuads();
+            tessellator.setNormal(0.0F, 1.0F, 0.0F);
+            renderer.renderFaceYPos(block, 0.0D, 0.0D, 0.0D, icon);
+            tessellator.draw();
+
+            tessellator.startDrawingQuads();
+            tessellator.setNormal(0.0F, 0.0F, -1.0F);
+            renderer.renderFaceZNeg(block, 0.0D, 0.0D, 0.0D, icon);
+            tessellator.draw();
+
+            tessellator.startDrawingQuads();
+            tessellator.setNormal(0.0F, 0.0F, 1.0F);
+            renderer.renderFaceZPos(block, 0.0D, 0.0D, 0.0D, icon);
+            tessellator.draw();
+
+            tessellator.startDrawingQuads();
+            tessellator.setNormal(-1.0F, 0.0F, 0.0F);
+            renderer.renderFaceXNeg(block, 0.0D, 0.0D, 0.0D, icon);
+            tessellator.draw();
+
+            tessellator.startDrawingQuads();
+            tessellator.setNormal(1.0F, 0.0F, 0.0F);
+            renderer.renderFaceXPos(block, 0.0D, 0.0D, 0.0D, icon);
+            tessellator.draw();
+        }
+
+        GL11.glPopMatrix();
     }
 }

@@ -13,6 +13,7 @@ public class CDBurnerMenu extends Container {
     private final Slot output;
 
     private ItemMusicCD.SongInfo songInfo;
+    private boolean closed;
 
     public CDBurnerMenu(EntityPlayer player) {
         super(player);
@@ -46,9 +47,17 @@ public class CDBurnerMenu extends Container {
 
     @Override
     public void onContainerClosed(EntityPlayer player) {
+        if (this.closed) {
+            return;
+        }
+        this.closed = true;
         super.onContainerClosed(player);
-        giveItemToPlayer(player, input.getStack());
-        giveItemToPlayer(player, output.getStack());
+        ItemStack in = input.getStack();
+        ItemStack out = output.getStack();
+        input.putStack(null);
+        output.putStack(null);
+        giveItemToPlayer(player, in);
+        giveItemToPlayer(player, out);
     }
 
     private static void giveItemToPlayer(EntityPlayer player, ItemStack stack) {
@@ -60,24 +69,32 @@ public class CDBurnerMenu extends Container {
     }
 
     public void setSongInfo(ItemMusicCD.SongInfo setSongInfo) {
-        this.songInfo = setSongInfo;
-        this.tryWriteSong(setSongInfo);
+        this.songInfo = copySongInfo(setSongInfo);
+        this.tryWriteSong(this.songInfo);
     }
 
     public String tryWriteSong(ItemMusicCD.SongInfo setSongInfo) {
-        this.songInfo = setSongInfo;
+        if (this.closed) {
+            return "gui.netmusic.cd_burner.get_info_error";
+        }
+        this.songInfo = copySongInfo(setSongInfo);
         String failure = this.getWriteFailureKey();
         if (failure != null) {
             return failure;
         }
 
-        ItemStack itemStack = this.input.getStack().copy();
+        ItemStack inputStack = this.input.getStack();
+        if (inputStack == null) {
+            return "gui.netmusic.cd_burner.cd_is_empty";
+        }
+
+        ItemStack itemStack = inputStack.copy();
         itemStack.stackSize = 1;
-        this.input.getStack().stackSize -= 1;
-        if (this.input.getStack().stackSize <= 0) {
+        inputStack.stackSize -= 1;
+        if (inputStack.stackSize <= 0) {
             this.input.putStack(null);
         }
-        ItemMusicCD.setSongInfo(setSongInfo, itemStack);
+        ItemMusicCD.setSongInfo(this.songInfo, itemStack);
         this.output.putStack(itemStack);
         return null;
     }
@@ -105,11 +122,33 @@ public class CDBurnerMenu extends Container {
     }
 
     public ItemMusicCD.SongInfo getSongInfo() {
-        return this.songInfo;
+        return copySongInfo(this.songInfo);
     }
 
     public Slot getInput() {
         return input;
+    }
+
+    public Slot getOutput() {
+        return output;
+    }
+
+    private static ItemMusicCD.SongInfo copySongInfo(ItemMusicCD.SongInfo source) {
+        if (source == null) {
+            return null;
+        }
+        ItemMusicCD.SongInfo copy = new ItemMusicCD.SongInfo();
+        copy.songUrl = source.songUrl;
+        copy.songName = source.songName;
+        copy.songTime = source.songTime;
+        copy.transName = source.transName;
+        copy.vip = source.vip;
+        copy.readOnly = source.readOnly;
+        copy.artists.clear();
+        if (source.artists != null) {
+            copy.artists.addAll(source.artists);
+        }
+        return copy;
     }
 
     private static class OneSlotInventory implements IInventory {

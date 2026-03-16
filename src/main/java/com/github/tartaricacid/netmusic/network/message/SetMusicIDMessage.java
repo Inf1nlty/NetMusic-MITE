@@ -55,13 +55,19 @@ public class SetMusicIDMessage implements Message {
         }
         if (this.source == Source.CD_BURNER) {
             if (entityPlayer.openContainer instanceof CDBurnerMenu menu) {
-                menu.tryWriteSong(this.song);
+                String failure = menu.tryWriteSong(this.song);
+                if (failure != null) {
+                    entityPlayer.addChatMessage(failure);
+                }
             }
             return;
         }
         if (this.source == Source.COMPUTER) {
             if (entityPlayer.openContainer instanceof ComputerMenu menu) {
-                menu.tryWriteSong(this.song);
+                String failure = menu.tryWriteSong(this.song);
+                if (failure != null) {
+                    entityPlayer.addChatMessage(failure);
+                }
             }
         }
     }

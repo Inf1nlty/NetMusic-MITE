@@ -493,7 +493,7 @@ public final class QqMusicApi {
         if (StringUtils.isBlank(json)) {
             return null;
         }
-        JsonElement element = JsonParser.parseString(json);
+        JsonElement element = new JsonParser().parse(json);
         if (element == null || !element.isJsonObject()) {
             return null;
         }
@@ -548,9 +548,7 @@ public final class QqMusicApi {
         if (!hasUin || !hasKey) {
             return text;
         }
-
-        Map<String, String> picked = pickCookiePairs(parsed, QQ_COOKIE_KEYS);
-        String normalized = joinCookiePairs(picked);
+        String normalized = joinCookiePairs(parsed);
         return normalized.isEmpty() ? text : normalized;
     }
 

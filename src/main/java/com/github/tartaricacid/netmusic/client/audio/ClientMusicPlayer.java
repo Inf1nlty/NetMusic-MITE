@@ -39,7 +39,7 @@ public final class ClientMusicPlayer {
         synchronized (LOCK) {
             stopInternal();
             currentSound = sound;
-            currentTick = 0;
+            currentTick = Math.max(0, sound.getStartTick());
             dynamicVolume = (float) GeneralConfig.MUSIC_PLAYER_VOLUME;
             gamePaused = false;
             stopRequested = false;
@@ -191,6 +191,7 @@ public final class ClientMusicPlayer {
                 DataLine.Info info = new DataLine.Info(SourceDataLine.class, playbackFormat);
                 try (SourceDataLine line = (SourceDataLine) AudioSystem.getLine(info)) {
                     try (AudioInputStream finalPcm = AudioSystem.getAudioInputStream(playbackFormat, pcm)) {
+                        skipToStartTick(finalPcm, playbackFormat, sound.getStartTick());
                         line.open(playbackFormat);
                         line.start();
                         byte[] buffer = new byte[8192];
@@ -381,6 +382,40 @@ public final class ClientMusicPlayer {
             return 2.0F;
         }
         return volume;
+    }
+
+    private static void skipToStartTick(AudioInputStream stream, AudioFormat format, int startTick) throws java.io.IOException {
+        if (stream == null || format == null || startTick <= 0) {
+            return;
+        }
+        int frameSize = Math.max(1, format.getFrameSize());
+        float frameRate = format.getFrameRate() > 0 ? format.getFrameRate() : format.getSampleRate();
+        if (frameRate <= 0) {
+            return;
+        }
+        double seconds = startTick / 20.0D;
+        long targetBytes = (long) Math.floor(seconds * frameRate * frameSize);
+        if (targetBytes <= 0L) {
+            return;
+        }
+        skipFully(stream, targetBytes);
+    }
+
+    private static void skipFully(InputStream input, long bytes) throws java.io.IOException {
+        long remaining = bytes;
+        byte[] discard = new byte[4096];
+        while (remaining > 0) {
+            long skipped = input.skip(remaining);
+            if (skipped > 0) {
+                remaining -= skipped;
+                continue;
+            }
+            int read = input.read(discard, 0, (int) Math.min(discard.length, remaining));
+            if (read <= 0) {
+                break;
+            }
+            remaining -= read;
+        }
     }
 
     private static void skipID3(InputStream inputStream) throws java.io.IOException {

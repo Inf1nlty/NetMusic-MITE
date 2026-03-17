@@ -61,7 +61,7 @@ public final class MusicListManage {
 
     public static ItemMusicCD.SongInfo getDjSong(long id) throws Exception {
         String result = NetMusic.NET_EASE_WEB_API.dj(id);
-        JsonObject jsonObject = JsonParser.parseString(result).getAsJsonObject();
+        JsonObject jsonObject = new JsonParser().parse(result).getAsJsonObject();
         JsonObject program = jsonObject.getAsJsonObject("program");
         if (program == null) {
             NetMusic.LOGGER.error("Failed to get DJ song info, program is null for id: {}", id);

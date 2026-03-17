@@ -75,6 +75,9 @@ public class MusicPlayerStateMessage implements Message {
         if (info == null || info.songTime <= 0 || StringUtils.isBlank(info.songUrl)) {
             return;
         }
-        new MusicToClientMessage(this.x, this.y, this.z, info.songUrl, info.songTime, info.songName).apply(entityPlayer);
+        int totalTicks = Math.max(1, info.songTime) * 20;
+        int remainingMusicTicks = Math.max(0, this.currentTime - 64);
+        int startTick = Math.max(0, Math.min(totalTicks, totalTicks - remainingMusicTicks));
+        new MusicToClientMessage(this.x, this.y, this.z, info.songUrl, info.songTime, info.songName, startTick).apply(entityPlayer);
     }
 }

@@ -16,12 +16,15 @@ tooltips.netmusic.cd.read_only=[只读]
 block.netmusic.cd_burner.desc=可写入网易云或 QQ 音乐链接（由配置决定）
 block.netmusic.computer.web_link.desc=你可以输入任意网络链接，只支持 mp3 和 flac 格式
 block.netmusic.computer.local_file.desc=你还可以使用本地文件路径，但这样就只有你自己能听到音乐
+
 message.netmusic.music_player.need_vip=这首歌曲是 VIP 歌曲，无法播放
 message.netmusic.music_player.404=无法找到链接为 %s 的歌曲
 message.netmusic.cd_burner.applied=已将待写入的刻录机歌曲写入你的唱片。
 message.netmusic.computer.applied=已将待写入的电脑歌曲写入你的唱片。
 message.netmusic.music_cd.need_writable_cd=你的背包里没有可写音乐唱片。
+
 subtitle.netmusic.block.music_player=唱片机声
+
 command.netmusic.music_cd.reload.success=所有的唱片重载了！
 command.netmusic.config.reload.success=NetMusic 配置已重载。
 command.netmusic.music_cd.add163.success=添加网易云歌单成功！
@@ -54,6 +57,7 @@ command.netmusic.pending.none=无
 command.netmusic.pending.entry=%s:%s 距今=%s刻
 command.netmusic.source.cd_burner=唱片刻录机
 command.netmusic.source.computer=电脑
+
 gui.netmusic.lyric.waiting=等待歌词中...
 gui.netmusic.lyric.no_lyric=无歌词
 gui.netmusic.cd_burner.craft=制作唱片
@@ -85,6 +89,7 @@ gui.netmusic.computer.name.empty=歌曲名不能为空
 gui.netmusic.computer.time.tips=时长(秒)
 gui.netmusic.computer.time.empty=歌曲时长不能为空
 gui.netmusic.computer.time.not_number=歌曲时长格式不正确，请输入数字！
+
 config.name.netmusic.general=通用设置
 config.name.netmusic.general.enable_stereo=启用立体声
 config.comment.netmusic.general.enable_stereo=是否启用立体声效果
@@ -110,8 +115,8 @@ config.name.netmusic.general.original_player_lyrics_color=播放器歌词颜色(
 config.comment.netmusic.general.original_player_lyrics_color=播放器中原歌词的颜色，使用 #ARGB 格式
 config.name.netmusic.general.translated_player_lyrics_color=播放器歌词颜色(翻译歌词)
 config.comment.netmusic.general.translated_player_lyrics_color=播放器中翻译歌词的颜色，使用 #ARGB 格式
-jei.netmusic.altar_craft.item_craft.result=合成物品
-item.netmusic.music_cd.tip=用于写入音乐的唱片，如果为只读则无法覆盖已写入的音乐。
-block.netmusic.music_player.tip=将音乐唱片放入唱片机，享受你喜爱的音乐。
-block.netmusic.cd_burner.tip=可按配置写入网易云或 QQ 音乐链接
-block.netmusic.computer.tip=用于通过本地或网络将喜欢的音乐写入唱片，仅支持 mp3/flac 格式
+
+emi.music_cd.info=用于写入音乐的唱片，如果为只读则无法覆盖已写入的音乐。
+emi.music_player.info=将音乐唱片放入唱片机，享受你喜爱的音乐。
+emi.cd_burner.info=可按配置写入网易云或 QQ 音乐链接
+emi.computer.info=用于通过本地或网络将喜欢的音乐写入唱片，仅支持 mp3/flac 格式

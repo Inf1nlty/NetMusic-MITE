@@ -1,4 +1,4 @@
-package com.github.tartaricacid.netmusic.compat.modmenu;
+package com.github.tartaricacid.netmusic.compat;
 
 import com.github.tartaricacid.netmusic.config.NetMusicConfigs;
 import io.github.prospector.modmenu.api.ConfigScreenFactory;

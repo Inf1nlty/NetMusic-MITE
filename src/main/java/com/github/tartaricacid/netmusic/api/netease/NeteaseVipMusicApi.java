@@ -67,7 +67,7 @@ public final class NeteaseVipMusicApi {
         if (StringUtils.isBlank(rawJson)) {
             return "";
         }
-        JsonElement element = JsonParser.parseString(rawJson);
+        JsonElement element = new JsonParser().parse(rawJson);
         if (element == null || !element.isJsonObject()) {
             return "";
         }

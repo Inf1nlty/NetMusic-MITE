@@ -16,12 +16,15 @@ tooltips.netmusic.cd.read_only=[Read Only]
 block.netmusic.cd_burner.desc=Writes NetEase or QQ Music links (provider controlled by config)
 block.netmusic.computer.web_link.desc=You can use any network link, Only supports mp3 and flac formats
 block.netmusic.computer.local_file.desc=You can also use the local file path, but then only you can hear the music
+
 message.netmusic.music_player.need_vip=This song is a VIP song and cannot be played
 message.netmusic.music_player.404=Unable to find song: %s
 message.netmusic.cd_burner.applied=Pending CD Burner song written to your CD.
 message.netmusic.computer.applied=Pending Computer song written to your CD.
 message.netmusic.music_cd.need_writable_cd=No writable Music CD found in your inventory.
+
 subtitle.netmusic.block.music_player=Music Player Sound
+
 command.netmusic.music_cd.reload.success=All CD is reloaded!
 command.netmusic.config.reload.success=NetMusic config reloaded.
 command.netmusic.music_cd.add163.success=Add NetEase music list success!
@@ -54,6 +57,7 @@ command.netmusic.pending.none=none
 command.netmusic.pending.entry=%s:%s age=%st
 command.netmusic.source.cd_burner=CD Burner
 command.netmusic.source.computer=Computer
+
 gui.netmusic.lyric.waiting=Waiting for lyrics...
 gui.netmusic.lyric.no_lyric=No Lyrics
 gui.netmusic.cd_burner.craft=Craft CD
@@ -85,6 +89,7 @@ gui.netmusic.computer.name.empty=The song name cannot be empty
 gui.netmusic.computer.time.tips=Time (s)
 gui.netmusic.computer.time.empty=The song time cannot be empty
 gui.netmusic.computer.time.not_number=The song time format is incorrect, please enter the song time as a number!
+
 config.name.netmusic.general=General Settings
 config.name.netmusic.general.enable_stereo=Enable Stereo
 config.comment.netmusic.general.enable_stereo=Whether stereo playback is enabled
@@ -110,8 +115,8 @@ config.name.netmusic.general.original_player_lyrics_color=Original Player Lyrics
 config.comment.netmusic.general.original_player_lyrics_color=The color of the original lyrics in the music player, in #ARGB format
 config.name.netmusic.general.translated_player_lyrics_color=Translated Player Lyrics Color
 config.comment.netmusic.general.translated_player_lyrics_color=The color of the translated lyrics in the music player, in #ARGB format
-jei.netmusic.altar_craft.item_craft.result=Craft Item
-item.netmusic.music_cd.tip=A music CD used for writing musics, if it's read only, a music cannot be overwritten.
-block.netmusic.music_player.tip=Place a Music CD on a music player and enjoy your favorite music.
-block.netmusic.cd_burner.tip=Writes NetEase or QQ Music links according to config
-block.netmusic.computer.tip=Used for writing your favorite music to the CD via Local or Network, Only supports mp3/flac format
+
+emi.music_cd.info=A music CD used for writing musics, if it's read only, a music cannot be overwritten.
+emi.music_player.info=Place a Music CD on a music player and enjoy your favorite music.
+emi.cd_burner.info=Writes NetEase or QQ Music links according to config
+emi.computer.info=Used for writing your favorite music to the CD via Local or Network, Only supports mp3/flac format

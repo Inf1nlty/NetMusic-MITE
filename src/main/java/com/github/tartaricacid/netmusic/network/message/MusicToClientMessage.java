@@ -8,6 +8,7 @@ import com.github.tartaricacid.netmusic.client.audio.ClientMusicPlayer;
 import com.github.tartaricacid.netmusic.client.audio.MusicPlayManager;
 import com.github.tartaricacid.netmusic.client.audio.NetMusicSound;
 import com.github.tartaricacid.netmusic.config.GeneralConfig;
+import net.minecraft.Minecraft;
 import com.github.tartaricacid.netmusic.tileentity.TileEntityMusicPlayer;
 import moddedmite.rustedironcore.network.PacketByteBuf;
 import net.minecraft.EntityPlayer;
@@ -30,18 +31,32 @@ public class MusicToClientMessage implements Message {
     public final String url;
     public final int timeSecond;
     public final String songName;
+    public final int startTick;
 
     public MusicToClientMessage(PacketByteBuf packetByteBuf) {
-        this(packetByteBuf.readInt(), packetByteBuf.readInt(), packetByteBuf.readInt(), packetByteBuf.readString(), packetByteBuf.readInt(), packetByteBuf.readString());
+        this(
+                packetByteBuf.readInt(),
+                packetByteBuf.readInt(),
+                packetByteBuf.readInt(),
+                packetByteBuf.readString(),
+                packetByteBuf.readInt(),
+                packetByteBuf.readString(),
+                readOptionalStartTick(packetByteBuf)
+        );
     }
 
     public MusicToClientMessage(int x, int y, int z, String url, int timeSecond, String songName) {
+        this(x, y, z, url, timeSecond, songName, 0);
+    }
+
+    public MusicToClientMessage(int x, int y, int z, String url, int timeSecond, String songName, int startTick) {
         this.x = x;
         this.y = y;
         this.z = z;
         this.url = url;
         this.timeSecond = timeSecond;
         this.songName = songName;
+        this.startTick = Math.max(0, startTick);
     }
 
     @Override
@@ -52,6 +67,7 @@ public class MusicToClientMessage implements Message {
         packetByteBuf.writeString(this.url == null ? "" : this.url);
         packetByteBuf.writeInt(this.timeSecond);
         packetByteBuf.writeString(this.songName == null ? "" : this.songName);
+        packetByteBuf.writeInt(this.startTick);
     }
 
     @Override
@@ -74,7 +90,9 @@ public class MusicToClientMessage implements Message {
                 playerTile.lyricRecord = null;
             } else {
                 playerTile.setPlay(true);
-                playerTile.setCurrentTime(this.timeSecond * 20 + 64);
+                int totalTicks = Math.max(1, this.timeSecond) * 20 + 64;
+                int syncedCurrent = Math.max(0, totalTicks - this.startTick);
+                playerTile.setCurrentTime(syncedCurrent);
             }
         }
 
@@ -105,10 +123,25 @@ public class MusicToClientMessage implements Message {
             playerTile.lyricRecord = lyricRecord;
         }
 
+        Minecraft minecraft = Minecraft.getMinecraft();
+        if (minecraft != null && minecraft.ingameGUI != null && StringUtils.isNotBlank(this.songName)) {
+            minecraft.ingameGUI.setRecordPlayingMessage(this.songName);
+        }
+
         LyricRecord finalLyricRecord = lyricRecord;
         MusicPlayManager.play(this.url, this.songName, resolved -> {
-            ClientMusicPlayer.play(new NetMusicSound(this.x, this.y, this.z, resolved, this.timeSecond, finalLyricRecord));
+            ClientMusicPlayer.play(new NetMusicSound(this.x, this.y, this.z, resolved, this.timeSecond, finalLyricRecord, this.startTick));
             return null;
         });
+    }
+
+    private static int readOptionalStartTick(PacketByteBuf buf) {
+        try {
+            if (buf.getInputStream() != null && buf.getInputStream().available() >= 4) {
+                return Math.max(0, buf.readInt());
+            }
+        } catch (Exception ignored) {
+        }
+        return 0;
     }
 }

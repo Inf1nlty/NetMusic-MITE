@@ -31,7 +31,7 @@ final class BlockbenchModel {
             if (in == null) {
                 return new BlockbenchModel(texture, fallbackTextureWidth, fallbackTextureHeight, new ArrayList<Element>());
             }
-            JsonObject root = JsonParser.parseReader(new InputStreamReader(in, StandardCharsets.UTF_8)).getAsJsonObject();
+            JsonObject root = new JsonParser().parse(new InputStreamReader(in, StandardCharsets.UTF_8)).getAsJsonObject();
             int texW = fallbackTextureWidth;
             int texH = fallbackTextureHeight;
             JsonArray textureSize = root.getAsJsonArray("texture_size");

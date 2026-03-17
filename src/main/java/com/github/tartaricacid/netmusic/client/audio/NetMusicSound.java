@@ -11,14 +11,20 @@ public class NetMusicSound {
     private final int z;
     private final URL songUrl;
     private final int timeSecond;
+    private final int startTick;
     private final @Nullable LyricRecord lyricRecord;
 
     public NetMusicSound(int x, int y, int z, URL songUrl, int timeSecond, @Nullable LyricRecord lyricRecord) {
+        this(x, y, z, songUrl, timeSecond, lyricRecord, 0);
+    }
+
+    public NetMusicSound(int x, int y, int z, URL songUrl, int timeSecond, @Nullable LyricRecord lyricRecord, int startTick) {
         this.x = x;
         this.y = y;
         this.z = z;
         this.songUrl = songUrl;
         this.timeSecond = timeSecond;
+        this.startTick = Math.max(0, startTick);
         this.lyricRecord = lyricRecord;
     }
 
@@ -40,6 +46,10 @@ public class NetMusicSound {
 
     public int getTimeSecond() {
         return this.timeSecond;
+    }
+
+    public int getStartTick() {
+        return this.startTick;
     }
 
     public @Nullable LyricRecord getLyricRecord() {

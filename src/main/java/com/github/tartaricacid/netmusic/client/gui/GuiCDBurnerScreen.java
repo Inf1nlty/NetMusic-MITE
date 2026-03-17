@@ -250,7 +250,8 @@ public class GuiCDBurnerScreen extends GuiContainer {
         if (!hasUin || !hasKey) {
             return "";
         }
-        return joinCookiePairs(pickCookiePairs(pairs, QQ_COOKIE_KEYS));
+        // Keep all non-attribute cookie pairs; some accounts require extra keys to avoid trial links.
+        return joinCookiePairs(pairs);
     }
 
     private static Map<String, String> pickCookiePairs(Map<String, String> source, String[] orderedKeys) {

@@ -124,7 +124,7 @@ public final class PlayerVipCookieStore {
             return;
         }
         try (InputStreamReader reader = new InputStreamReader(Files.newInputStream(file.toPath()), StandardCharsets.UTF_8)) {
-            JsonElement element = JsonParser.parseReader(reader);
+            JsonElement element = new JsonParser().parse(reader);
             if (!element.isJsonObject()) {
                 return;
             }

@@ -36,7 +36,7 @@
       "com.github.tartaricacid.netmusic.compat.EmiPluginImpl"
     ],
     "modmenu": [
-      "com.github.tartaricacid.netmusic.compat.modmenu.ModMenuApiImpl"
+      "com.github.tartaricacid.netmusic.compat.ModMenuApiImpl"
     ]
   },
   "mixins": [

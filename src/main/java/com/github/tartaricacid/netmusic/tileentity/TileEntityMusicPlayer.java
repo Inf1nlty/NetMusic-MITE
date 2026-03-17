@@ -160,7 +160,7 @@ public class TileEntityMusicPlayer extends TileEntity {
 
         this.tickTime();
         this.syncTickCounter++;
-        if (this.syncTickCounter >= 40) {
+        if (this.syncTickCounter >= 10) {
             this.syncTickCounter = 0;
             this.syncStateToClients();
         }

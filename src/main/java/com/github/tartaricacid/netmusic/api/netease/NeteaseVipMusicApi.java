@@ -22,6 +22,10 @@ public final class NeteaseVipMusicApi {
     }
 
     public static String resolveByOuterUrl(String url) {
+        return resolveByOuterUrl(url, GeneralConfig.NETEASE_VIP_COOKIE);
+    }
+
+    public static String resolveByOuterUrl(String url, String cookie) {
         if (StringUtils.isBlank(url)) {
             return "";
         }
@@ -31,19 +35,24 @@ public final class NeteaseVipMusicApi {
         }
         try {
             long songId = Long.parseLong(matcher.group(1));
-            return resolveBySongId(songId);
+            return resolveBySongId(songId, cookie);
         } catch (NumberFormatException e) {
             return "";
         }
     }
 
     public static String resolveBySongId(long songId) {
-        if (songId <= 0 || !GeneralConfig.hasNeteaseVipCookie()) {
+        return resolveBySongId(songId, GeneralConfig.NETEASE_VIP_COOKIE);
+    }
+
+    public static String resolveBySongId(long songId, String cookie) {
+        String normalizedCookie = cookie == null ? "" : cookie.trim();
+        if (songId <= 0 || StringUtils.isBlank(normalizedCookie)) {
             return "";
         }
 
         Map<String, String> headers = new HashMap<String, String>();
-        headers.put("Cookie", GeneralConfig.NETEASE_VIP_COOKIE);
+        headers.put("Cookie", normalizedCookie);
         headers.put("User-Agent", com.github.tartaricacid.netmusic.api.NetEaseMusic.getUserAgent());
         headers.put("Referer", com.github.tartaricacid.netmusic.api.NetEaseMusic.getReferer());
         headers.put("Origin", com.github.tartaricacid.netmusic.api.NetEaseMusic.getOrigin());

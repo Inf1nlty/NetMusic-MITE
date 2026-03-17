@@ -29,12 +29,23 @@ public final class ClientMusicPlayer {
     private static volatile int playSession;
     private static volatile float dynamicVolume = 1.0F;
     private static volatile boolean gamePaused;
+    private static int missingTileTicks;
     private static int currentTick;
+    private static String currentSourceId = "";
+    private static String pendingSourceId = "";
+    private static int pendingX;
+    private static int pendingY;
+    private static int pendingZ;
+    private static long pendingUntilMs;
     private static final Random RANDOM = new Random();
 
     private ClientMusicPlayer() {}
 
     public static void play(NetMusicSound sound) {
+        play(sound, null);
+    }
+
+    public static void play(NetMusicSound sound, String sourceId) {
         if (sound == null) {
             return;
         }
@@ -44,8 +55,11 @@ public final class ClientMusicPlayer {
             currentTick = Math.max(0, sound.getStartTick());
             dynamicVolume = (float) GeneralConfig.MUSIC_PLAYER_VOLUME;
             gamePaused = false;
+            missingTileTicks = 0;
+            currentSourceId = normalizeSourceId(sourceId, sound);
             stopRequested = false;
             int session = ++playSession;
+            clearPendingLocked();
             playThread = new Thread(() -> stream(sound, session), "NetMusic-Player");
             playThread.setDaemon(true);
             playThread.start();
@@ -73,6 +87,79 @@ public final class ClientMusicPlayer {
         }
     }
 
+    public static boolean isPlayingAtSource(int x, int y, int z, String sourceId) {
+        String normalized = normalizeSourceId(sourceId, null);
+        synchronized (LOCK) {
+            if (currentSound == null) {
+                return false;
+            }
+            if (currentSound.getX() != x || currentSound.getY() != y || currentSound.getZ() != z) {
+                return false;
+            }
+            return normalized.equals(currentSourceId);
+        }
+    }
+
+    public static boolean isPendingAtSource(int x, int y, int z, String sourceId) {
+        String normalized = normalizeSourceId(sourceId, null);
+        long now = System.currentTimeMillis();
+        synchronized (LOCK) {
+            if (pendingSourceId.isEmpty() || now >= pendingUntilMs) {
+                return false;
+            }
+            if (pendingX != x || pendingY != y || pendingZ != z) {
+                return false;
+            }
+            return normalized.equals(pendingSourceId);
+        }
+    }
+
+    public static boolean isPlayingOrPendingAtSource(int x, int y, int z, String sourceId) {
+        return isPlayingAtSource(x, y, z, sourceId) || isPendingAtSource(x, y, z, sourceId);
+    }
+
+    public static void markPendingPlayback(int x, int y, int z, String sourceId, long ttlMs) {
+        String normalized = normalizeSourceId(sourceId, null);
+        long ttl = Math.max(500L, ttlMs);
+        synchronized (LOCK) {
+            pendingX = x;
+            pendingY = y;
+            pendingZ = z;
+            pendingSourceId = normalized;
+            pendingUntilMs = System.currentTimeMillis() + ttl;
+        }
+    }
+
+    public static int getCurrentTickAt(int x, int y, int z) {
+        synchronized (LOCK) {
+            if (currentSound == null) {
+                return -1;
+            }
+            if (currentSound.getX() != x || currentSound.getY() != y || currentSound.getZ() != z) {
+                return -1;
+            }
+            return currentTick;
+        }
+    }
+
+    public static boolean syncTickAtSource(int x, int y, int z, String sourceId, int targetTick) {
+        String normalized = normalizeSourceId(sourceId, null);
+        int safeTick = Math.max(0, targetTick);
+        synchronized (LOCK) {
+            if (currentSound == null) {
+                return false;
+            }
+            if (currentSound.getX() != x || currentSound.getY() != y || currentSound.getZ() != z) {
+                return false;
+            }
+            if (!normalized.equals(currentSourceId)) {
+                return false;
+            }
+            currentTick = safeTick;
+            return true;
+        }
+    }
+
     private static void stopInternal() {
         stopRequested = true;
         if (playThread != null) {
@@ -81,8 +168,11 @@ public final class ClientMusicPlayer {
         }
         currentSound = null;
         currentTick = 0;
+        missingTileTicks = 0;
         dynamicVolume = 0.0F;
         gamePaused = false;
+        currentSourceId = "";
+        clearPendingLocked();
     }
 
     /**
@@ -146,14 +236,20 @@ public final class ClientMusicPlayer {
         // Stop when the tile is no longer playing or missing.
         TileEntity te = mc.theWorld.getBlockTileEntity(sound.getX(), sound.getY(), sound.getZ());
         if (te instanceof TileEntityMusicPlayer musicPlayer) {
+            missingTileTicks = 0;
             if (!musicPlayer.isPlay()) {
                 stopAndClearTile(mc, sound);
                 return;
             }
             musicPlayer.lyricRecord = lyricRecord;
         } else {
-            stopAndClearTile(mc, sound);
-            return;
+            // In multiplayer join/teleport transitions, the sync packet can arrive before the chunk TE is client-ready.
+            // Keep audio alive for a short grace window and wait for explicit server stop updates.
+            missingTileTicks++;
+            if (missingTileTicks > 100) {
+                stop();
+                return;
+            }
         }
 
         // Fallback stop: avoid lingering playback if the stream stalls or server missed a stop update.
@@ -193,7 +289,13 @@ public final class ClientMusicPlayer {
                 DataLine.Info info = new DataLine.Info(SourceDataLine.class, playbackFormat);
                 try (SourceDataLine line = (SourceDataLine) AudioSystem.getLine(info)) {
                     try (AudioInputStream finalPcm = AudioSystem.getAudioInputStream(playbackFormat, pcm)) {
-                        skipToStartTick(finalPcm, playbackFormat, sound.getStartTick());
+                        int targetTick = resolveTargetStartTickForStream(sound);
+                        skipToStartTick(finalPcm, playbackFormat, targetTick);
+                        synchronized (LOCK) {
+                            if (currentSound == sound && session == playSession) {
+                                currentTick = Math.max(currentTick, targetTick);
+                            }
+                        }
                         line.open(playbackFormat);
                         line.start();
                         byte[] buffer = new byte[8192];
@@ -434,6 +536,40 @@ public final class ClientMusicPlayer {
             return 2.0F;
         }
         return volume;
+    }
+
+    private static String normalizeSourceId(String sourceId, NetMusicSound sound) {
+        String value = sourceId;
+        if ((value == null || value.trim().isEmpty()) && sound != null && sound.getSongUrl() != null) {
+            value = sound.getSongUrl().toString();
+        }
+        if (value == null) {
+            return "";
+        }
+        String normalized = value.trim();
+        int fragment = normalized.indexOf('#');
+        if (fragment >= 0) {
+            normalized = normalized.substring(0, fragment);
+        }
+        return normalized;
+    }
+
+    private static int resolveTargetStartTickForStream(NetMusicSound sound) {
+        int fallback = sound == null ? 0 : Math.max(0, sound.getStartTick());
+        synchronized (LOCK) {
+            if (sound != null && currentSound == sound) {
+                return Math.max(fallback, currentTick);
+            }
+        }
+        return fallback;
+    }
+
+    private static void clearPendingLocked() {
+        pendingSourceId = "";
+        pendingUntilMs = 0L;
+        pendingX = 0;
+        pendingY = 0;
+        pendingZ = 0;
     }
 
     private static void skipToStartTick(AudioInputStream stream, AudioFormat format, int startTick) throws java.io.IOException {

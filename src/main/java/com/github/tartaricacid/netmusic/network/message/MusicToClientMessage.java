@@ -17,6 +17,7 @@ import net.minecraft.TileEntity;
 import org.apache.commons.lang3.StringUtils;
 
 import java.io.IOException;
+import java.net.URL;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -113,6 +114,24 @@ public class MusicToClientMessage implements Message {
             return;
         }
 
+        String sourceId = buildPlaybackSourceId(this.url, this.timeSecond, this.songName);
+        if (ClientMusicPlayer.isPendingAtSource(this.x, this.y, this.z, sourceId)) {
+            return;
+        }
+        if (ClientMusicPlayer.isPlayingAtSource(this.x, this.y, this.z, sourceId)) {
+            int localTick = ClientMusicPlayer.getCurrentTickAt(this.x, this.y, this.z);
+            if (localTick >= 0) {
+                int diff = this.startTick - localTick;
+                if (Math.abs(diff) <= 120) {
+                    if (GeneralConfig.ENABLE_DEBUG_MODE) {
+                        NetMusic.LOGGER.info("[NetMusic Debug][Play] skip duplicate sync at ({},{},{}) startTick={} localTick={} diff={}",
+                                this.x, this.y, this.z, this.startTick, localTick, diff);
+                    }
+                    return;
+                }
+            }
+        }
+
         LyricRecord lyricRecord = resolveLyricRecord(this.url, this.songName, this.startTick > 0);
         if (lyricRecord != null) {
             lyricRecord.updateCurrentLine(Math.max(0, this.startTick));
@@ -128,10 +147,75 @@ public class MusicToClientMessage implements Message {
         }
 
         LyricRecord finalLyricRecord = lyricRecord;
+        if (isDirectAudioUrl(this.url)) {
+            try {
+                ClientMusicPlayer.play(new NetMusicSound(this.x, this.y, this.z, new URL(this.url), this.timeSecond, finalLyricRecord, this.startTick), sourceId);
+                return;
+            } catch (Exception e) {
+                NetMusic.LOGGER.warn("Failed to play direct url from server sync: {}", this.url, e);
+            }
+        }
+        long resolveStartMillis = System.currentTimeMillis();
+        ClientMusicPlayer.markPendingPlayback(this.x, this.y, this.z, sourceId, 15000L);
         MusicPlayManager.play(this.url, this.songName, resolved -> {
-            ClientMusicPlayer.play(new NetMusicSound(this.x, this.y, this.z, resolved, this.timeSecond, finalLyricRecord, this.startTick));
+            int adjustedStartTick = adjustStartTickForResolveDelay(this.startTick, this.timeSecond, resolveStartMillis);
+            if (finalLyricRecord != null) {
+                finalLyricRecord.updateCurrentLine(Math.max(0, adjustedStartTick));
+            }
+            ClientMusicPlayer.play(new NetMusicSound(this.x, this.y, this.z, resolved, this.timeSecond, finalLyricRecord, adjustedStartTick), sourceId);
             return null;
         });
+    }
+
+    public static String buildPlaybackSourceId(String url, int timeSecond, String songName) {
+        String safeUrl = normalizeSourceUrl(url);
+        int safeTime = Math.max(0, timeSecond);
+        return safeUrl + "|" + safeTime;
+    }
+
+    private static String normalizeSourceUrl(String url) {
+        if (url == null) {
+            return "";
+        }
+        String value = url.trim();
+        int fragment = value.indexOf('#');
+        if (fragment >= 0) {
+            value = value.substring(0, fragment);
+        }
+        return value;
+    }
+
+    private static boolean isDirectAudioUrl(String url) {
+        if (StringUtils.isBlank(url)) {
+            return false;
+        }
+        String lower = url.toLowerCase(Locale.ROOT);
+        int cut = lower.length();
+        int query = lower.indexOf('?');
+        if (query >= 0 && query < cut) {
+            cut = query;
+        }
+        int fragment = lower.indexOf('#');
+        if (fragment >= 0 && fragment < cut) {
+            cut = fragment;
+        }
+        String base = lower.substring(0, cut);
+        return base.endsWith(".mp3")
+                || base.endsWith(".flac")
+                || base.endsWith(".m4a")
+                || base.endsWith(".wav")
+                || base.endsWith(".ogg");
+    }
+
+    private static int adjustStartTickForResolveDelay(int startTick, int timeSecond, long resolveStartMillis) {
+        int totalTicks = Math.max(1, timeSecond) * 20;
+        long elapsedMillis = Math.max(0L, System.currentTimeMillis() - resolveStartMillis);
+        int elapsedTicks = (int) (elapsedMillis / 50L);
+        int adjusted = Math.max(0, startTick + elapsedTicks);
+        if (adjusted > totalTicks) {
+            adjusted = totalTicks;
+        }
+        return adjusted;
     }
 
     private static int readOptionalStartTick(PacketByteBuf buf) {
@@ -158,11 +242,6 @@ public class MusicToClientMessage implements Message {
             if (until != null && System.currentTimeMillis() < until.longValue()) {
                 return null;
             }
-        }
-
-        if (recovery) {
-            // Recovery path should be lightweight: don't block packet handling on lyric HTTP calls.
-            return null;
         }
 
         LyricRecord resolved = doResolveLyric(url, songName);

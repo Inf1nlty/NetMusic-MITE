@@ -1,10 +1,14 @@
 package com.github.tartaricacid.netmusic.block;
 
+import com.github.tartaricacid.netmusic.NetMusic;
+import com.github.tartaricacid.netmusic.api.netease.NeteaseVipMusicApi;
+import com.github.tartaricacid.netmusic.api.qq.QqMusicApi;
 import com.github.tartaricacid.netmusic.client.renderer.RenderTypes;
 import com.github.tartaricacid.netmusic.config.PlayerVipCookieStore;
 import com.github.tartaricacid.netmusic.item.ItemMusicCD;
 import com.github.tartaricacid.netmusic.tileentity.TileEntityMusicPlayer;
 import com.github.tartaricacid.netmusic.creativetab.NetMusicCreativeTab;
+import com.github.tartaricacid.netmusic.util.SongInfoHelper;
 import net.minecraft.BlockBreakInfo;
 import net.minecraft.BlockConstants;
 import net.minecraft.BlockDirectionalWithTileEntity;
@@ -16,10 +20,12 @@ import net.minecraft.EnumFace;
 import net.minecraft.IBlockAccess;
 import net.minecraft.ItemStack;
 import net.minecraft.Material;
+import net.minecraft.ServerPlayer;
 import net.minecraft.StringHelper;
 import net.minecraft.TileEntity;
 import net.minecraft.World;
 import net.xiaoyu233.fml.reload.utils.IdUtil;
+import org.apache.commons.lang3.StringUtils;
 
 public class BlockMusicPlayer extends BlockDirectionalWithTileEntity {
     public static final int CYCLE_DISABLE_MASK = 4;
@@ -169,17 +175,22 @@ public class BlockMusicPlayer extends BlockDirectionalWithTileEntity {
             player.addChatMessage("message.netmusic.music_player.need_vip");
             return true;
         }
+        ItemMusicCD.SongInfo playbackInfo = resolvePlaybackInfoForServer(info, player);
+        if (playbackInfo == null) {
+            playbackInfo = SongInfoHelper.sanitize(info);
+        }
 
         ItemStack one = heldStack.copy();
         one.stackSize = 1;
         musicPlayer.setItem(0, one);
+        musicPlayer.setPreparedSongInfo(playbackInfo);
         if (!player.inCreativeMode()) {
             heldStack.stackSize--;
             if (heldStack.stackSize <= 0) {
                 player.inventory.setInventorySlotContents(player.inventory.currentItem, null);
             }
         }
-        musicPlayer.setPlayToClient(info);
+        musicPlayer.setPlayToClient(playbackInfo != null ? playbackInfo : info);
         musicPlayer.setChanged();
         return true;
     }
@@ -218,5 +229,73 @@ public class BlockMusicPlayer extends BlockDirectionalWithTileEntity {
     @Override
     public boolean isValidMetadata(int metadata) {
         return metadata >= 0 && metadata < 8;
+    }
+
+    private static ItemMusicCD.SongInfo resolvePlaybackInfoForServer(ItemMusicCD.SongInfo source, EntityPlayer player) {
+        ItemMusicCD.SongInfo base = SongInfoHelper.sanitize(source);
+        if (base == null) {
+            return null;
+        }
+        if (!(player instanceof ServerPlayer)) {
+            return base;
+        }
+
+        PlayerVipCookieStore.CookiePair cookiePair = PlayerVipCookieStore.getCookies(player.getUniqueIDSilent());
+        try {
+            if (isQqSongUrl(base.songUrl)) {
+                ItemMusicCD.SongInfo resolved = SongInfoHelper.sanitize(QqMusicApi.resolveSong(base.songUrl, cookiePair.qqCookie));
+                return mergeResolvedSongInfo(base, resolved);
+            }
+            if (isNeteaseSongUrl(base.songUrl)) {
+                String resolvedUrl = NeteaseVipMusicApi.resolveByOuterUrl(base.songUrl, cookiePair.neteaseCookie);
+                if (StringUtils.isNotBlank(resolvedUrl)) {
+                    base.songUrl = resolvedUrl.trim();
+                }
+            }
+            return base;
+        } catch (Exception e) {
+            NetMusic.LOGGER.warn("Failed to resolve server playback url for {}", base.songUrl, e);
+            return base;
+        }
+    }
+
+    private static ItemMusicCD.SongInfo mergeResolvedSongInfo(ItemMusicCD.SongInfo fallback, ItemMusicCD.SongInfo resolved) {
+        if (resolved == null) {
+            return fallback;
+        }
+        if (StringUtils.isBlank(resolved.songName)) {
+            resolved.songName = fallback.songName;
+        }
+        if (resolved.songTime <= 0) {
+            resolved.songTime = fallback.songTime;
+        }
+        if (resolved.artists == null || resolved.artists.isEmpty()) {
+            resolved.artists.clear();
+            if (fallback.artists != null) {
+                resolved.artists.addAll(fallback.artists);
+            }
+        }
+        resolved.readOnly = fallback.readOnly;
+        resolved.vip = fallback.vip;
+        return SongInfoHelper.sanitize(resolved);
+    }
+
+    private static boolean isQqSongUrl(String url) {
+        if (StringUtils.isBlank(url)) {
+            return false;
+        }
+        String lower = url.toLowerCase();
+        return lower.contains("y.qq.com")
+                || lower.contains("qqmusic.qq.com")
+                || lower.contains("aqqmusic.tc.qq.com")
+                || lower.contains("stream.qqmusic.qq.com");
+    }
+
+    private static boolean isNeteaseSongUrl(String url) {
+        if (StringUtils.isBlank(url)) {
+            return false;
+        }
+        String lower = url.toLowerCase();
+        return lower.contains("music.163.com");
     }
 }

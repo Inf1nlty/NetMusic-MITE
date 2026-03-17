@@ -2,13 +2,16 @@ package com.github.tartaricacid.netmusic.tileentity;
 
 import com.github.tartaricacid.netmusic.api.lyric.LyricRecord;
 import com.github.tartaricacid.netmusic.block.BlockMusicPlayer;
+import com.github.tartaricacid.netmusic.NetMusic;
 import com.github.tartaricacid.netmusic.config.GeneralConfig;
 import com.github.tartaricacid.netmusic.init.InitItems;
 import com.github.tartaricacid.netmusic.item.ItemMusicCD;
 import com.github.tartaricacid.netmusic.network.NetworkHandler;
 import com.github.tartaricacid.netmusic.network.message.MusicToClientMessage;
 import com.github.tartaricacid.netmusic.network.message.MusicPlayerStateMessage;
+import com.github.tartaricacid.netmusic.util.SongInfoHelper;
 import net.minecraft.ItemStack;
+import net.minecraft.World;
 import net.minecraft.NBTTagCompound;
 import net.minecraft.Packet;
 import net.minecraft.Packet132TileEntityData;
@@ -29,6 +32,7 @@ public class TileEntityMusicPlayer extends TileEntity {
     private static final String ITEM_INFO_TAG = "MusicCdInfo";
     private static final String ITEM_COUNT_TAG = "MusicCdCount";
     private static final String ITEM_SUBTYPE_TAG = "MusicCdSubtype";
+    private static final int AUDIENCE_RESYNC_INTERVAL_TICKS = 40;
 
     private ItemStack[] items = new ItemStack[1];
     private boolean isPlay = false;
@@ -37,6 +41,8 @@ public class TileEntityMusicPlayer extends TileEntity {
     private int syncTickCounter = 0;
     private int audienceSyncTickCounter = 0;
     private final Set<Integer> activeAudience = new HashSet<Integer>();
+    private final Map<Integer, Integer> audienceLastSyncTick = new HashMap<Integer, Integer>();
+    private @Nullable ItemMusicCD.SongInfo activeSongInfo;
 
     /**
      * 仅客户端使用，记录当前音乐的歌词信息，用于渲染歌词
@@ -64,6 +70,7 @@ public class TileEntityMusicPlayer extends TileEntity {
         } else {
             this.items[0] = null;
         }
+        this.activeSongInfo = this.isPlay ? resolvePlaybackInfo(this.items[0]) : null;
     }
 
     @Override
@@ -128,14 +135,19 @@ public class TileEntityMusicPlayer extends TileEntity {
         if (this.isPlay && !play && this.worldObj != null && !this.worldObj.isRemote) {
             this.broadcastStopToActiveAudience();
         }
+        if (!play) {
+            this.activeSongInfo = null;
+        }
         isPlay = play;
     }
 
     public void setPlayToClient(ItemMusicCD.SongInfo info) {
+        this.activeSongInfo = SongInfoHelper.sanitize(info);
         this.setCurrentTime(info.songTime * 20 + 64);
         this.isPlay = true;
         if (this.worldObj != null && !this.worldObj.isRemote && info != null) {
             this.activeAudience.clear();
+            this.audienceLastSyncTick.clear();
             this.syncAudiencePlayback(info, true);
             this.syncStateToClients();
         }
@@ -146,6 +158,7 @@ public class TileEntityMusicPlayer extends TileEntity {
         if (stack == null) {
             setPlay(false);
             setCurrentTime(0);
+            this.activeSongInfo = null;
         }
         this.onInventoryChanged();
         if (this.worldObj != null) {
@@ -185,7 +198,7 @@ public class TileEntityMusicPlayer extends TileEntity {
                 if (stackInSlot == null) {
                     return;
                 }
-                ItemMusicCD.SongInfo songInfo = ItemMusicCD.getSongInfo(stackInSlot);
+                ItemMusicCD.SongInfo songInfo = resolvePlaybackInfo(stackInSlot);
                 if (songInfo != null) {
                     this.setPlayToClient(songInfo);
                 }
@@ -240,7 +253,10 @@ public class TileEntityMusicPlayer extends TileEntity {
             return;
         }
         ItemStack stack = this.items[0] == null ? null : this.items[0].copy();
-        ItemMusicCD.SongInfo info = stack == null ? null : ItemMusicCD.getSongInfo(stack);
+        ItemMusicCD.SongInfo info = this.isPlay ? SongInfoHelper.copy(this.activeSongInfo) : null;
+        if (info == null) {
+            info = stack == null ? null : ItemMusicCD.getSongInfo(stack);
+        }
         String songUrl = info == null || info.songUrl == null ? "" : info.songUrl;
         int songTime = info == null ? 0 : Math.max(0, info.songTime);
         String songName = info == null || info.songName == null ? "" : info.songName;
@@ -262,18 +278,23 @@ public class TileEntityMusicPlayer extends TileEntity {
         this.activeAudience.retainAll(onlinePlayers.keySet());
         ItemMusicCD.SongInfo info = knownInfo;
         if (info == null) {
+            info = SongInfoHelper.copy(this.activeSongInfo);
+        }
+        if (info == null) {
             ItemStack stack = this.items[0];
-            info = stack == null ? null : ItemMusicCD.getSongInfo(stack);
+            info = resolvePlaybackInfo(stack);
         }
         if (!this.isPlay || info == null || info.songTime <= 0 || info.songUrl == null || info.songUrl.isEmpty()) {
             this.broadcastStopToActiveAudience(onlinePlayers);
             this.activeAudience.clear();
+            this.audienceLastSyncTick.clear();
             return;
         }
 
+        int nowTick = getWorldTick(this.worldObj);
         double radius = Math.max(1.0D, GeneralConfig.MUSIC_PLAYER_HEAR_DISTANCE);
         double radiusSq = radius * radius;
-        Set<Integer> inRange = new HashSet<Integer>();
+        Set<Integer> nextAudience = new HashSet<Integer>();
         for (Map.Entry<Integer, ServerPlayer> entry : onlinePlayers.entrySet()) {
             ServerPlayer player = entry.getValue();
             if (player == null) {
@@ -283,24 +304,29 @@ public class TileEntityMusicPlayer extends TileEntity {
             if (player.getDistanceSq(this.xCoord + 0.5D, this.yCoord + 0.5D, this.zCoord + 0.5D) > radiusSq) {
                 continue;
             }
-            inRange.add(Integer.valueOf(playerId));
-            if (forceResend || !this.activeAudience.contains(Integer.valueOf(playerId))) {
+            Integer id = Integer.valueOf(playerId);
+            boolean wasActive = this.activeAudience.contains(id);
+            boolean shouldResync = forceResend || !wasActive || shouldPeriodicResync(id, nowTick);
+            if (shouldResync) {
                 this.sendPlayToPlayer(player, info);
+                this.audienceLastSyncTick.put(id, nowTick);
             }
+            nextAudience.add(id);
         }
 
         for (Integer playerId : new HashSet<Integer>(this.activeAudience)) {
-            if (inRange.contains(playerId)) {
+            if (nextAudience.contains(playerId)) {
                 continue;
             }
             ServerPlayer player = onlinePlayers.get(playerId);
             if (player != null) {
                 this.sendStopToPlayer(player);
             }
+            this.audienceLastSyncTick.remove(playerId);
         }
 
         this.activeAudience.clear();
-        this.activeAudience.addAll(inRange);
+        this.activeAudience.addAll(nextAudience);
     }
 
     private Map<Integer, ServerPlayer> collectOnlinePlayers() {
@@ -331,6 +357,7 @@ public class TileEntityMusicPlayer extends TileEntity {
             }
         }
         this.activeAudience.clear();
+        this.audienceLastSyncTick.clear();
     }
 
     private void sendPlayToPlayer(ServerPlayer player, ItemMusicCD.SongInfo info) {
@@ -338,6 +365,10 @@ public class TileEntityMusicPlayer extends TileEntity {
             return;
         }
         int startTick = computeStartTick(info.songTime, this.currentTime);
+        if (GeneralConfig.ENABLE_DEBUG_MODE) {
+            NetMusic.LOGGER.info("[NetMusic Debug][Sync] send play to {} at ({},{},{}) startTick={} song={}",
+                    player.getEntityName(), this.xCoord, this.yCoord, this.zCoord, startTick, info.songName);
+        }
         NetworkHandler.sendToClientPlayer(new MusicToClientMessage(
                 this.xCoord, this.yCoord, this.zCoord, info.songUrl, info.songTime, info.songName, startTick
         ), player);
@@ -347,13 +378,65 @@ public class TileEntityMusicPlayer extends TileEntity {
         if (player == null) {
             return;
         }
+        if (GeneralConfig.ENABLE_DEBUG_MODE) {
+            NetMusic.LOGGER.info("[NetMusic Debug][Sync] send stop to {} at ({},{},{})",
+                    player.getEntityName(), this.xCoord, this.yCoord, this.zCoord);
+        }
         NetworkHandler.sendToClientPlayer(new MusicToClientMessage(this.xCoord, this.yCoord, this.zCoord, "", 0, ""), player);
+    }
+
+    private boolean shouldPeriodicResync(Integer playerId, int nowTick) {
+        if (playerId == null) {
+            return true;
+        }
+        Integer last = this.audienceLastSyncTick.get(playerId);
+        if (last == null) {
+            return true;
+        }
+        int elapsed = nowTick - last.intValue();
+        if (elapsed < 0) {
+            return true;
+        }
+        return elapsed >= AUDIENCE_RESYNC_INTERVAL_TICKS;
+    }
+
+    private static int getWorldTick(World world) {
+        if (world == null) {
+            return 0;
+        }
+        long total = world.getTotalWorldTime();
+        if (total <= 0L) {
+            return 0;
+        }
+        long cap = Integer.MAX_VALUE;
+        return (int) (total % cap);
     }
 
     private static int computeStartTick(int songTimeSecond, int currentTime) {
         int totalTicks = Math.max(1, songTimeSecond) * 20;
         int remainingMusicTicks = Math.max(0, currentTime - 64);
         return Math.max(0, Math.min(totalTicks, totalTicks - remainingMusicTicks));
+    }
+
+    public void setPreparedSongInfo(@Nullable ItemMusicCD.SongInfo songInfo) {
+        this.activeSongInfo = SongInfoHelper.sanitize(songInfo);
+    }
+
+    @Nullable
+    public ItemMusicCD.SongInfo getPreparedSongInfo() {
+        return SongInfoHelper.copy(this.activeSongInfo);
+    }
+
+    @Nullable
+    private ItemMusicCD.SongInfo resolvePlaybackInfo(@Nullable ItemStack stack) {
+        ItemMusicCD.SongInfo preferred = SongInfoHelper.sanitize(this.activeSongInfo);
+        if (preferred != null) {
+            return preferred;
+        }
+        if (stack == null) {
+            return null;
+        }
+        return SongInfoHelper.sanitize(ItemMusicCD.getSongInfo(stack));
     }
 
     private static ItemStack resolveLoadedMusicCd(@Nullable ItemStack loaded, NBTTagCompound itemTag,

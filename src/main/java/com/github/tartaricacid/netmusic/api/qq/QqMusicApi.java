@@ -10,6 +10,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.google.gson.JsonPrimitive;
 import org.apache.commons.lang3.StringUtils;
 
 import javax.annotation.Nullable;
@@ -117,6 +118,10 @@ public final class QqMusicApi {
     }
 
     public static ItemMusicCD.SongInfo resolveSong(String input) throws Exception {
+        return resolveSong(input, GeneralConfig.QQ_VIP_COOKIE);
+    }
+
+    public static ItemMusicCD.SongInfo resolveSong(String input, String cookieText) throws Exception {
         String mid = extractMid(input);
         if (!isValidMid(mid)) {
             debug("resolveSong invalid input={} normalizedMid={}", shorten(input, 160), mid);
@@ -124,7 +129,7 @@ public final class QqMusicApi {
         }
         debug("resolveSong input={} mid={}", shorten(input, 160), mid);
 
-        String cookie = sanitizeCookie(GeneralConfig.QQ_VIP_COOKIE);
+        String cookie = sanitizeCookie(cookieText);
         String uin = extractUin(cookie);
         TrackInfo trackInfo = getTrackInfoByMid(mid, cookie, uin);
         if (trackInfo == null || StringUtils.isBlank(trackInfo.songName)) {
@@ -248,9 +253,9 @@ public final class QqMusicApi {
         JsonArray songMidList = new JsonArray();
         JsonArray songTypeList = new JsonArray();
         for (FileCandidate candidate : QUALITY_CANDIDATES) {
-            filenameList.add(candidate.buildFilename(mediaMid));
-            songMidList.add(songMid);
-            songTypeList.add(0);
+            filenameList.add(new JsonPrimitive(candidate.buildFilename(mediaMid)));
+            songMidList.add(new JsonPrimitive(songMid));
+            songTypeList.add(new JsonPrimitive(0));
         }
 
         JsonObject param = new JsonObject();

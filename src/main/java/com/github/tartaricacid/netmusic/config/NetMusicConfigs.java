@@ -25,6 +25,10 @@ public class NetMusicConfigs extends SimpleConfigs {
             "netmusic.general.music_player_volume", 0.5D, 0.0D, 2.0D, "netmusic.general.music_player_volume"
     );
 
+    public static final ConfigDouble MUSIC_PLAYER_HEAR_DISTANCE = new ConfigDouble(
+            "netmusic.general.music_player_hear_distance", 64.0D, 1.0D, 256.0D, "netmusic.general.music_player_hear_distance"
+    );
+
     public static final ConfigString PROXY_TYPE = new ConfigString(
             "netmusic.general.proxy_type", "DIRECT", "netmusic.general.proxy_type"
     );
@@ -64,6 +68,7 @@ public class NetMusicConfigs extends SimpleConfigs {
         VALUES = List.of(
                 ENABLE_STEREO,
                 MUSIC_PLAYER_VOLUME,
+                MUSIC_PLAYER_HEAR_DISTANCE,
                 PROXY_TYPE,
                 PROXY_ADDRESS,
                 CD_PROVIDER,
@@ -88,6 +93,7 @@ public class NetMusicConfigs extends SimpleConfigs {
     public void syncToRuntime() {
         GeneralConfig.ENABLE_STEREO = ENABLE_STEREO.getBooleanValue();
         GeneralConfig.MUSIC_PLAYER_VOLUME = clampVolume(MUSIC_PLAYER_VOLUME.getDoubleValue());
+        GeneralConfig.MUSIC_PLAYER_HEAR_DISTANCE = clampHearDistance(MUSIC_PLAYER_HEAR_DISTANCE.getDoubleValue());
         GeneralConfig.ENABLE_PLAYER_LYRICS = ENABLE_PLAYER_LYRICS.getBooleanValue();
         GeneralConfig.PROXY_TYPE = parseProxyType(PROXY_TYPE.getStringValue());
         GeneralConfig.PROXY_ADDRESS = trim(PROXY_ADDRESS.getStringValue());
@@ -125,6 +131,16 @@ public class NetMusicConfigs extends SimpleConfigs {
         }
         if (value > 2.0D) {
             return 2.0D;
+        }
+        return value;
+    }
+
+    private static double clampHearDistance(double value) {
+        if (value < 1.0D) {
+            return 1.0D;
+        }
+        if (value > 256.0D) {
+            return 256.0D;
         }
         return value;
     }

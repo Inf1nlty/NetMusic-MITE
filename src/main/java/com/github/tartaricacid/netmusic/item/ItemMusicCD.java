@@ -80,6 +80,7 @@ public class ItemMusicCD extends Item {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public void addInformation(ItemStack stack, EntityPlayer player, List tooltip, boolean extendedInfo, Slot slot) {
         super.addInformation(stack, player, tooltip, extendedInfo, slot);
         SongInfo songInfo = getSongInfo(stack);
@@ -118,8 +119,7 @@ public class ItemMusicCD extends Item {
         @SerializedName("artists")
         public List<String> artists = Lists.newArrayList();
 
-        public SongInfo() {
-        }
+        public SongInfo() {}
 
         public SongInfo(String songUrl, String songName, int songTime, boolean readOnly) {
             this.songUrl = songUrl;

@@ -6,6 +6,7 @@ import moddedmite.rustedironcore.network.PacketSupplier;
 import net.minecraft.ResourceLocation;
 
 public class ServerReceiverRegistry {
+
     public static void register() {
         registerReceiver(SetMusicIDMessage.ID, SetMusicIDMessage::new);
     }

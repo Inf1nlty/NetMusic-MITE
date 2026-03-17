@@ -29,7 +29,6 @@ public final class ClientMusicPlayer {
     private static volatile boolean gamePaused;
     private static int currentTick;
     private static final Random RANDOM = new Random();
-    private static final float MAX_HEAR_DISTANCE = 96.0F;
 
     private ClientMusicPlayer() {}
 
@@ -104,7 +103,8 @@ public final class ClientMusicPlayer {
         double dz = mc.thePlayer.posZ - (sound.getZ() + 0.5D);
         double distSq = dx * dx + dy * dy + dz * dz;
         float distance = (float) Math.sqrt(distSq);
-        float attenuation = Math.max(0.0F, 1.0F - distance / MAX_HEAR_DISTANCE);
+        float maxHearDistance = (float) Math.max(1.0D, GeneralConfig.MUSIC_PLAYER_HEAR_DISTANCE);
+        float attenuation = Math.max(0.0F, 1.0F - distance / maxHearDistance);
         dynamicVolume = clampVolume((float) GeneralConfig.MUSIC_PLAYER_VOLUME * attenuation);
 
         currentTick++;

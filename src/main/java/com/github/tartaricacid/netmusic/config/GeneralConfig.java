@@ -14,6 +14,7 @@ public class GeneralConfig {
     public static String NETEASE_VIP_COOKIE = "";
     public static String QQ_VIP_COOKIE = "";
     public static double MUSIC_PLAYER_VOLUME = 1.0D;
+    public static double MUSIC_PLAYER_HEAR_DISTANCE = 64.0D;
 
     public static boolean ENABLE_PLAYER_LYRICS = true;
 

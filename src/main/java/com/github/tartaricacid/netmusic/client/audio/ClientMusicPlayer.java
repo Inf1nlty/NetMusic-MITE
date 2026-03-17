@@ -29,6 +29,7 @@ public final class ClientMusicPlayer {
     private static volatile int playSession;
     private static volatile float dynamicVolume = 1.0F;
     private static volatile boolean gamePaused;
+    private static volatile boolean streamStarted;
     private static int missingTileTicks;
     private static int currentTick;
     private static String currentSourceId = "";
@@ -53,6 +54,7 @@ public final class ClientMusicPlayer {
             stopInternal();
             currentSound = sound;
             currentTick = Math.max(0, sound.getStartTick());
+            streamStarted = false;
             dynamicVolume = (float) GeneralConfig.MUSIC_PLAYER_VOLUME;
             gamePaused = false;
             missingTileTicks = 0;
@@ -143,6 +145,24 @@ public final class ClientMusicPlayer {
     }
 
     public static boolean syncTickAtSource(int x, int y, int z, String sourceId, int targetTick) {
+        return syncServerTickAtSource(x, y, z, sourceId, targetTick);
+    }
+
+    public static boolean syncServerTickAt(int x, int y, int z, int targetTick) {
+        int safeTick = Math.max(0, targetTick);
+        synchronized (LOCK) {
+            if (currentSound == null) {
+                return false;
+            }
+            if (currentSound.getX() != x || currentSound.getY() != y || currentSound.getZ() != z) {
+                return false;
+            }
+            currentTick = safeTick;
+            return true;
+        }
+    }
+
+    public static boolean syncServerTickAtSource(int x, int y, int z, String sourceId, int targetTick) {
         String normalized = normalizeSourceId(sourceId, null);
         int safeTick = Math.max(0, targetTick);
         synchronized (LOCK) {
@@ -168,6 +188,7 @@ public final class ClientMusicPlayer {
         }
         currentSound = null;
         currentTick = 0;
+        streamStarted = false;
         missingTileTicks = 0;
         dynamicVolume = 0.0F;
         gamePaused = false;
@@ -214,7 +235,13 @@ public final class ClientMusicPlayer {
         float attenuation = Math.max(0.0F, 1.0F - distance / maxHearDistance);
         dynamicVolume = clampVolume((float) GeneralConfig.MUSIC_PLAYER_VOLUME * attenuation);
 
-        currentTick++;
+        int syncedTick;
+        synchronized (LOCK) {
+            if (streamStarted) {
+                currentTick++;
+            }
+            syncedTick = currentTick;
+        }
 
         // Particle effects: spawn note particles periodically while playing.
         if (attenuation > 0.0F && mc.theWorld.getTotalWorldTime() % 8L == 0L) {
@@ -227,19 +254,22 @@ public final class ClientMusicPlayer {
             }
         }
 
-        // Update lyric line based on current tick.
         LyricRecord lyricRecord = sound.getLyricRecord();
-        if (lyricRecord != null) {
-            lyricRecord.updateCurrentLine(currentTick);
-        }
 
-        // Stop when the tile is no longer playing or missing.
+        // Stop when the tile is no longer playing or missing. Prefer server TE time as lyric tick source.
         TileEntity te = mc.theWorld.getBlockTileEntity(sound.getX(), sound.getY(), sound.getZ());
         if (te instanceof TileEntityMusicPlayer musicPlayer) {
             missingTileTicks = 0;
             if (!musicPlayer.isPlay()) {
                 stopAndClearTile(mc, sound);
                 return;
+            }
+            syncedTick = TileEntityMusicPlayer.computeStartTick(sound.getTimeSecond(), musicPlayer.getCurrentTime());
+            synchronized (LOCK) {
+                currentTick = syncedTick;
+            }
+            if (lyricRecord != null) {
+                lyricRecord.updateCurrentLine(syncedTick);
             }
             musicPlayer.lyricRecord = lyricRecord;
         } else {
@@ -250,11 +280,14 @@ public final class ClientMusicPlayer {
                 stop();
                 return;
             }
+            if (lyricRecord != null) {
+                lyricRecord.updateCurrentLine(syncedTick);
+            }
         }
 
         // Fallback stop: avoid lingering playback if the stream stalls or server missed a stop update.
         int maxTick = Math.max(sound.getTimeSecond(), 1) * 20 + 50;
-        if (currentTick > maxTick) {
+        if (syncedTick > maxTick) {
             stopAndClearTile(mc, sound);
         }
     }
@@ -289,15 +322,20 @@ public final class ClientMusicPlayer {
                 DataLine.Info info = new DataLine.Info(SourceDataLine.class, playbackFormat);
                 try (SourceDataLine line = (SourceDataLine) AudioSystem.getLine(info)) {
                     try (AudioInputStream finalPcm = AudioSystem.getAudioInputStream(playbackFormat, pcm)) {
-                        int targetTick = resolveTargetStartTickForStream(sound);
+                        int targetTick = Math.max(0, sound.getStartTick());
                         skipToStartTick(finalPcm, playbackFormat, targetTick);
                         synchronized (LOCK) {
                             if (currentSound == sound && session == playSession) {
-                                currentTick = Math.max(currentTick, targetTick);
+                                currentTick = targetTick;
                             }
                         }
                         line.open(playbackFormat);
                         line.start();
+                        synchronized (LOCK) {
+                            if (currentSound == sound && session == playSession) {
+                                streamStarted = true;
+                            }
+                        }
                         byte[] buffer = new byte[8192];
                         int read;
                         boolean paused = false;
@@ -340,6 +378,7 @@ public final class ClientMusicPlayer {
                     currentSound = null;
                     playThread = null;
                     currentTick = 0;
+                    streamStarted = false;
                 }
             }
         }
@@ -546,22 +585,7 @@ public final class ClientMusicPlayer {
         if (value == null) {
             return "";
         }
-        String normalized = value.trim();
-        int fragment = normalized.indexOf('#');
-        if (fragment >= 0) {
-            normalized = normalized.substring(0, fragment);
-        }
-        return normalized;
-    }
-
-    private static int resolveTargetStartTickForStream(NetMusicSound sound) {
-        int fallback = sound == null ? 0 : Math.max(0, sound.getStartTick());
-        synchronized (LOCK) {
-            if (sound != null && currentSound == sound) {
-                return Math.max(fallback, currentTick);
-            }
-        }
-        return fallback;
+        return value.trim();
     }
 
     private static void clearPendingLocked() {

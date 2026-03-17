@@ -28,6 +28,10 @@ public class MusicToClientMessage implements Message {
     public static final ResourceLocation ID = new ResourceLocation(NetMusic.MOD_ID, "play_music");
     private static final String MUSIC_163_URL = "https://music.163.com/";
     private static final Pattern MUSIC_163_ID_PATTERN = Pattern.compile("^.*?[?&]id=(\\d+)\\.mp3$");
+    private static final Pattern NETEASE_ID_PATTERN = Pattern.compile("[?&]id=(\\d+)");
+    private static final Pattern QQ_MID_PATTERN = Pattern.compile("(?i)(?:songmid|netmusic_songmid)(?:=|/)([0-9a-z]{14})");
+    private static final Pattern QQ_SONG_DETAIL_PATTERN = Pattern.compile("(?i)/songDetail/([0-9a-z]{14})");
+    private static final Pattern QQ_FILENAME_MID_PATTERN = Pattern.compile("(?i)(?:^|/)[a-z]{1,2}\\d{3}([0-9a-z]{14})\\.(?:mp3|m4a|flac|wav|ogg)");
     private static final int LYRIC_CACHE_MAX = 64;
     private static final long RECOVERY_LYRIC_COOLDOWN_MS = 8000L;
     private static final Map<String, LyricRecord> LYRIC_CACHE = new LinkedHashMap<String, LyricRecord>(LYRIC_CACHE_MAX + 1, 0.75F, true) {
@@ -90,51 +94,61 @@ public class MusicToClientMessage implements Message {
 
     @Override
     public void apply(EntityPlayer entityPlayer) {
+        applyClientPlayback(entityPlayer, this.x, this.y, this.z, this.url, this.timeSecond, this.songName, this.startTick, true);
+    }
+
+    public static void applyClientPlayback(EntityPlayer entityPlayer, int x, int y, int z,
+                                           String url, int timeSecond, String songName,
+                                           int startTick, boolean updateTile) {
         if (entityPlayer == null || entityPlayer.worldObj == null || !entityPlayer.worldObj.isRemote) {
             return;
         }
 
-        TileEntity tile = entityPlayer.worldObj.getBlockTileEntity(this.x, this.y, this.z);
+        TileEntity tile = entityPlayer.worldObj.getBlockTileEntity(x, y, z);
         TileEntityMusicPlayer playerTile = tile instanceof TileEntityMusicPlayer ? (TileEntityMusicPlayer) tile : null;
-        if (playerTile != null) {
-            if (StringUtils.isBlank(this.url)) {
+        int safeStartTick = Math.max(0, startTick);
+        int safeTimeSecond = Math.max(0, timeSecond);
+        String safeUrl = url == null ? "" : url;
+        String safeSongName = songName == null ? "" : songName;
+
+        if (updateTile && playerTile != null) {
+            if (StringUtils.isBlank(safeUrl)) {
                 playerTile.setPlay(false);
                 playerTile.setCurrentTime(0);
                 playerTile.lyricRecord = null;
             } else {
                 playerTile.setPlay(true);
-                int totalTicks = Math.max(1, this.timeSecond) * 20 + 64;
-                int syncedCurrent = Math.max(0, totalTicks - this.startTick);
+                int totalTicks = Math.max(1, safeTimeSecond) * 20 + 64;
+                int syncedCurrent = Math.max(0, totalTicks - safeStartTick);
                 playerTile.setCurrentTime(syncedCurrent);
             }
         }
 
-        if (StringUtils.isBlank(this.url)) {
-            ClientMusicPlayer.stop();
+        if (StringUtils.isBlank(safeUrl)) {
+            if (ClientMusicPlayer.isPlayingAt(x, y, z)) {
+                ClientMusicPlayer.stop();
+            }
             return;
         }
 
-        String sourceId = buildPlaybackSourceId(this.url, this.timeSecond, this.songName);
-        if (ClientMusicPlayer.isPendingAtSource(this.x, this.y, this.z, sourceId)) {
+        String sourceId = buildPlaybackSourceId(safeUrl, safeTimeSecond, safeSongName);
+        if (ClientMusicPlayer.isPendingAtSource(x, y, z, sourceId)) {
             return;
         }
-        if (ClientMusicPlayer.isPlayingAtSource(this.x, this.y, this.z, sourceId)) {
-            int localTick = ClientMusicPlayer.getCurrentTickAt(this.x, this.y, this.z);
-            if (localTick >= 0) {
-                int diff = this.startTick - localTick;
-                if (Math.abs(diff) <= 120) {
-                    if (GeneralConfig.ENABLE_DEBUG_MODE) {
-                        NetMusic.LOGGER.info("[NetMusic Debug][Play] skip duplicate sync at ({},{},{}) startTick={} localTick={} diff={}",
-                                this.x, this.y, this.z, this.startTick, localTick, diff);
-                    }
-                    return;
-                }
+        if (ClientMusicPlayer.isPlayingAtSource(x, y, z, sourceId)) {
+            return;
+        }
+        if (ClientMusicPlayer.isPlayingAt(x, y, z)) {
+            ClientMusicPlayer.stop();
+            if (GeneralConfig.ENABLE_DEBUG_MODE) {
+                NetMusic.LOGGER.info("[NetMusic Debug][Play] restart playback at ({},{},{}) startTick={} source={}",
+                        x, y, z, safeStartTick, sourceId);
             }
         }
 
-        LyricRecord lyricRecord = resolveLyricRecord(this.url, this.songName, this.startTick > 0);
+        LyricRecord lyricRecord = resolveLyricRecord(safeUrl, safeSongName, safeStartTick > 0);
         if (lyricRecord != null) {
-            lyricRecord.updateCurrentLine(Math.max(0, this.startTick));
+            lyricRecord.updateCurrentLine(safeStartTick);
         }
 
         if (playerTile != null) {
@@ -142,47 +156,89 @@ public class MusicToClientMessage implements Message {
         }
 
         Minecraft minecraft = Minecraft.getMinecraft();
-        if (minecraft != null && minecraft.ingameGUI != null && StringUtils.isNotBlank(this.songName)) {
-            minecraft.ingameGUI.setRecordPlayingMessage(this.songName);
+        if (minecraft != null && minecraft.ingameGUI != null && StringUtils.isNotBlank(safeSongName)) {
+            minecraft.ingameGUI.setRecordPlayingMessage(safeSongName);
         }
 
         LyricRecord finalLyricRecord = lyricRecord;
-        if (isDirectAudioUrl(this.url)) {
+        if (isDirectAudioUrl(safeUrl)) {
             try {
-                ClientMusicPlayer.play(new NetMusicSound(this.x, this.y, this.z, new URL(this.url), this.timeSecond, finalLyricRecord, this.startTick), sourceId);
+                ClientMusicPlayer.play(new NetMusicSound(x, y, z, new URL(safeUrl), safeTimeSecond, finalLyricRecord, safeStartTick), sourceId);
                 return;
             } catch (Exception e) {
-                NetMusic.LOGGER.warn("Failed to play direct url from server sync: {}", this.url, e);
+                NetMusic.LOGGER.warn("Failed to play direct url from server sync: {}", safeUrl, e);
             }
         }
-        long resolveStartMillis = System.currentTimeMillis();
-        ClientMusicPlayer.markPendingPlayback(this.x, this.y, this.z, sourceId, 15000L);
-        MusicPlayManager.play(this.url, this.songName, resolved -> {
-            int adjustedStartTick = adjustStartTickForResolveDelay(this.startTick, this.timeSecond, resolveStartMillis);
+        ClientMusicPlayer.markPendingPlayback(x, y, z, sourceId, 15000L);
+        MusicPlayManager.play(safeUrl, safeSongName, resolved -> {
             if (finalLyricRecord != null) {
-                finalLyricRecord.updateCurrentLine(Math.max(0, adjustedStartTick));
+                finalLyricRecord.updateCurrentLine(safeStartTick);
             }
-            ClientMusicPlayer.play(new NetMusicSound(this.x, this.y, this.z, resolved, this.timeSecond, finalLyricRecord, adjustedStartTick), sourceId);
+            ClientMusicPlayer.play(new NetMusicSound(x, y, z, resolved, safeTimeSecond, finalLyricRecord, safeStartTick), sourceId);
             return null;
         });
     }
 
     public static String buildPlaybackSourceId(String url, int timeSecond, String songName) {
-        String safeUrl = normalizeSourceUrl(url);
-        int safeTime = Math.max(0, timeSecond);
-        return safeUrl + "|" + safeTime;
+        return normalizeSourceUrl(url);
     }
 
     private static String normalizeSourceUrl(String url) {
-        if (url == null) {
+        if (StringUtils.isBlank(url)) {
             return "";
         }
         String value = url.trim();
-        int fragment = value.indexOf('#');
-        if (fragment >= 0) {
-            value = value.substring(0, fragment);
+
+        String qqMid = extractQqSongMid(value);
+        if (StringUtils.isNotBlank(qqMid)) {
+            return "qq:" + qqMid;
         }
-        return value;
+
+        String neteaseId = extractNeteaseId(value);
+        if (StringUtils.isNotBlank(neteaseId)) {
+            return "netease:" + neteaseId;
+        }
+
+        int end = value.length();
+        int query = value.indexOf('?');
+        if (query >= 0 && query < end) {
+            end = query;
+        }
+        int fragment = value.indexOf('#');
+        if (fragment >= 0 && fragment < end) {
+            end = fragment;
+        }
+        return value.substring(0, end).toLowerCase(Locale.ROOT);
+    }
+
+    private static String extractQqSongMid(String url) {
+        if (StringUtils.isBlank(url)) {
+            return "";
+        }
+        Matcher fragmentMid = QQ_MID_PATTERN.matcher(url);
+        if (fragmentMid.find()) {
+            return fragmentMid.group(1);
+        }
+        Matcher detailMid = QQ_SONG_DETAIL_PATTERN.matcher(url);
+        if (detailMid.find()) {
+            return detailMid.group(1);
+        }
+        Matcher fileMid = QQ_FILENAME_MID_PATTERN.matcher(url);
+        if (fileMid.find()) {
+            return fileMid.group(1);
+        }
+        return "";
+    }
+
+    private static String extractNeteaseId(String url) {
+        if (StringUtils.isBlank(url)) {
+            return "";
+        }
+        Matcher matcher = NETEASE_ID_PATTERN.matcher(url);
+        if (matcher.find()) {
+            return matcher.group(1);
+        }
+        return "";
     }
 
     private static boolean isDirectAudioUrl(String url) {
@@ -205,17 +261,6 @@ public class MusicToClientMessage implements Message {
                 || base.endsWith(".m4a")
                 || base.endsWith(".wav")
                 || base.endsWith(".ogg");
-    }
-
-    private static int adjustStartTickForResolveDelay(int startTick, int timeSecond, long resolveStartMillis) {
-        int totalTicks = Math.max(1, timeSecond) * 20;
-        long elapsedMillis = Math.max(0L, System.currentTimeMillis() - resolveStartMillis);
-        int elapsedTicks = (int) (elapsedMillis / 50L);
-        int adjusted = Math.max(0, startTick + elapsedTicks);
-        if (adjusted > totalTicks) {
-            adjusted = totalTicks;
-        }
-        return adjusted;
     }
 
     private static int readOptionalStartTick(PacketByteBuf buf) {

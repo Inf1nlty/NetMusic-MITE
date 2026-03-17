@@ -2,8 +2,6 @@ package com.github.tartaricacid.netmusic.tileentity;
 
 import com.github.tartaricacid.netmusic.api.lyric.LyricRecord;
 import com.github.tartaricacid.netmusic.block.BlockMusicPlayer;
-import com.github.tartaricacid.netmusic.NetMusic;
-import com.github.tartaricacid.netmusic.config.GeneralConfig;
 import com.github.tartaricacid.netmusic.init.InitItems;
 import com.github.tartaricacid.netmusic.item.ItemMusicCD;
 import com.github.tartaricacid.netmusic.network.NetworkHandler;
@@ -11,18 +9,12 @@ import com.github.tartaricacid.netmusic.network.message.MusicToClientMessage;
 import com.github.tartaricacid.netmusic.network.message.MusicPlayerStateMessage;
 import com.github.tartaricacid.netmusic.util.SongInfoHelper;
 import net.minecraft.ItemStack;
-import net.minecraft.World;
 import net.minecraft.NBTTagCompound;
 import net.minecraft.Packet;
 import net.minecraft.Packet132TileEntityData;
-import net.minecraft.ServerPlayer;
 import net.minecraft.TileEntity;
 
 import javax.annotation.Nullable;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
 
 public class TileEntityMusicPlayer extends TileEntity {
     private static final String IS_PLAY_TAG = "IsPlay";
@@ -38,8 +30,6 @@ public class TileEntityMusicPlayer extends TileEntity {
     private int currentTime;
     private boolean hasSignal = false;
     private int syncTickCounter = 0;
-    private int audienceSyncTickCounter = 0;
-    private final Set<Integer> activeAudience = new HashSet<Integer>();
     private @Nullable ItemMusicCD.SongInfo activeSongInfo;
 
     /**
@@ -130,9 +120,6 @@ public class TileEntityMusicPlayer extends TileEntity {
     }
 
     public void setPlay(boolean play) {
-        if (this.isPlay && !play && this.worldObj != null && !this.worldObj.isRemote) {
-            this.broadcastStopToActiveAudience();
-        }
         if (!play) {
             this.activeSongInfo = null;
         }
@@ -140,12 +127,17 @@ public class TileEntityMusicPlayer extends TileEntity {
     }
 
     public void setPlayToClient(ItemMusicCD.SongInfo info) {
-        this.activeSongInfo = SongInfoHelper.sanitize(info);
-        this.setCurrentTime(info.songTime * 20 + 64);
+        ItemMusicCD.SongInfo sanitized = SongInfoHelper.sanitize(info);
+        if (sanitized == null) {
+            return;
+        }
+        this.activeSongInfo = sanitized;
+        this.setCurrentTime(sanitized.songTime * 20 + 64);
         this.isPlay = true;
-        if (this.worldObj != null && !this.worldObj.isRemote && info != null) {
-            this.activeAudience.clear();
-            this.syncAudiencePlayback(info, true);
+        if (this.worldObj != null && !this.worldObj.isRemote) {
+            NetworkHandler.sendToNearBy(this.worldObj, this.xCoord, this.yCoord, this.zCoord,
+                    new MusicToClientMessage(this.xCoord, this.yCoord, this.zCoord,
+                            sanitized.songUrl, sanitized.songTime, sanitized.songName, 0));
             this.syncStateToClients();
         }
     }
@@ -176,11 +168,6 @@ public class TileEntityMusicPlayer extends TileEntity {
 
         this.tickTime();
         this.syncTickCounter++;
-        this.audienceSyncTickCounter++;
-        if (this.audienceSyncTickCounter >= 10) {
-            this.audienceSyncTickCounter = 0;
-            this.syncAudiencePlayback(null, false);
-        }
         if (this.syncTickCounter >= 20) {
             this.syncTickCounter = 0;
             this.syncStateToClients();
@@ -262,121 +249,7 @@ public class TileEntityMusicPlayer extends TileEntity {
                         this.isPlay, this.currentTime, this.hasSignal, stack, songUrl, songTime, songName));
     }
 
-    private void syncAudiencePlayback(@Nullable ItemMusicCD.SongInfo knownInfo, boolean forceResend) {
-        if (this.worldObj == null || this.worldObj.isRemote) {
-            return;
-        }
-        Map<Integer, ServerPlayer> onlinePlayers = collectOnlinePlayers();
-        if (onlinePlayers.isEmpty()) {
-            this.activeAudience.clear();
-            return;
-        }
-
-        this.activeAudience.retainAll(onlinePlayers.keySet());
-        ItemMusicCD.SongInfo info = knownInfo;
-        if (info == null) {
-            info = SongInfoHelper.copy(this.activeSongInfo);
-        }
-        if (info == null) {
-            ItemStack stack = this.items[0];
-            info = resolvePlaybackInfo(stack);
-        }
-        if (!this.isPlay || info == null || info.songTime <= 0 || info.songUrl == null || info.songUrl.isEmpty()) {
-            this.broadcastStopToActiveAudience(onlinePlayers);
-            this.activeAudience.clear();
-            return;
-        }
-        double radius = Math.max(1.0D, GeneralConfig.MUSIC_PLAYER_HEAR_DISTANCE);
-        double radiusSq = radius * radius;
-        Set<Integer> nextAudience = new HashSet<Integer>();
-        for (Map.Entry<Integer, ServerPlayer> entry : onlinePlayers.entrySet()) {
-            ServerPlayer player = entry.getValue();
-            if (player == null) {
-                continue;
-            }
-            int playerId = entry.getKey().intValue();
-            if (player.getDistanceSq(this.xCoord + 0.5D, this.yCoord + 0.5D, this.zCoord + 0.5D) > radiusSq) {
-                continue;
-            }
-            Integer id = Integer.valueOf(playerId);
-            boolean wasActive = this.activeAudience.contains(id);
-            boolean shouldResync = forceResend || !wasActive;
-            if (shouldResync) {
-                this.sendPlayToPlayer(player, info);
-            }
-            nextAudience.add(id);
-        }
-
-        for (Integer playerId : new HashSet<Integer>(this.activeAudience)) {
-            if (nextAudience.contains(playerId)) {
-                continue;
-            }
-            ServerPlayer player = onlinePlayers.get(playerId);
-            if (player != null) {
-                this.sendStopToPlayer(player);
-            }
-        }
-
-        this.activeAudience.clear();
-        this.activeAudience.addAll(nextAudience);
-    }
-
-    private Map<Integer, ServerPlayer> collectOnlinePlayers() {
-        Map<Integer, ServerPlayer> players = new HashMap<Integer, ServerPlayer>();
-        if (this.worldObj == null || this.worldObj.playerEntities == null) {
-            return players;
-        }
-        for (Object obj : this.worldObj.playerEntities) {
-            if (obj instanceof ServerPlayer player) {
-                players.put(Integer.valueOf(player.entityId), player);
-            }
-        }
-        return players;
-    }
-
-    private void broadcastStopToActiveAudience() {
-        this.broadcastStopToActiveAudience(this.collectOnlinePlayers());
-    }
-
-    private void broadcastStopToActiveAudience(Map<Integer, ServerPlayer> onlinePlayers) {
-        if (this.activeAudience.isEmpty()) {
-            return;
-        }
-        for (Integer playerId : new HashSet<Integer>(this.activeAudience)) {
-            ServerPlayer player = onlinePlayers.get(playerId);
-            if (player != null) {
-                this.sendStopToPlayer(player);
-            }
-        }
-        this.activeAudience.clear();
-    }
-
-    private void sendPlayToPlayer(ServerPlayer player, ItemMusicCD.SongInfo info) {
-        if (player == null || info == null) {
-            return;
-        }
-        int startTick = computeStartTick(info.songTime, this.currentTime);
-        if (GeneralConfig.ENABLE_DEBUG_MODE) {
-            NetMusic.LOGGER.info("[NetMusic Debug][Sync] send play to {} at ({},{},{}) startTick={} song={}",
-                    player.getEntityName(), this.xCoord, this.yCoord, this.zCoord, startTick, info.songName);
-        }
-        NetworkHandler.sendToClientPlayer(new MusicToClientMessage(
-                this.xCoord, this.yCoord, this.zCoord, info.songUrl, info.songTime, info.songName, startTick
-        ), player);
-    }
-
-    private void sendStopToPlayer(ServerPlayer player) {
-        if (player == null) {
-            return;
-        }
-        if (GeneralConfig.ENABLE_DEBUG_MODE) {
-            NetMusic.LOGGER.info("[NetMusic Debug][Sync] send stop to {} at ({},{},{})",
-                    player.getEntityName(), this.xCoord, this.yCoord, this.zCoord);
-        }
-        NetworkHandler.sendToClientPlayer(new MusicToClientMessage(this.xCoord, this.yCoord, this.zCoord, "", 0, ""), player);
-    }
-
-    private static int computeStartTick(int songTimeSecond, int currentTime) {
+    public static int computeStartTick(int songTimeSecond, int currentTime) {
         int totalTicks = Math.max(1, songTimeSecond) * 20;
         int remainingMusicTicks = Math.max(0, currentTime - 64);
         return Math.max(0, Math.min(totalTicks, totalTicks - remainingMusicTicks));

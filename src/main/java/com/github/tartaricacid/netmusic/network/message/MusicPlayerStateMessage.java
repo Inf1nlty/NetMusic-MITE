@@ -2,7 +2,6 @@ package com.github.tartaricacid.netmusic.network.message;
 
 import com.github.tartaricacid.netmusic.NetMusic;
 import com.github.tartaricacid.netmusic.client.audio.ClientMusicPlayer;
-import com.github.tartaricacid.netmusic.config.GeneralConfig;
 import com.github.tartaricacid.netmusic.tileentity.TileEntityMusicPlayer;
 import moddedmite.rustedironcore.network.PacketByteBuf;
 import net.minecraft.EntityPlayer;
@@ -87,13 +86,9 @@ public class MusicPlayerStateMessage implements Message {
             return;
         }
 
-        double radius = Math.max(1.0D, GeneralConfig.MUSIC_PLAYER_HEAR_DISTANCE);
-        if (entityPlayer.getDistanceSq(this.x + 0.5D, this.y + 0.5D, this.z + 0.5D) > radius * radius) {
-            return;
-        }
-
         String sourceId = MusicToClientMessage.buildPlaybackSourceId(this.songUrl, this.songTime, this.songName);
-        if (ClientMusicPlayer.isPlayingOrPendingAtSource(this.x, this.y, this.z, sourceId)) {
+        if (ClientMusicPlayer.isPlayingAtSource(this.x, this.y, this.z, sourceId)
+                || ClientMusicPlayer.isPendingAtSource(this.x, this.y, this.z, sourceId)) {
             return;
         }
 
@@ -103,23 +98,14 @@ public class MusicPlayerStateMessage implements Message {
             return;
         }
 
-        int startTick = computeStartTick(this.songTime, this.currentTime);
-        if (GeneralConfig.ENABLE_DEBUG_MODE) {
-            NetMusic.LOGGER.info("[NetMusic Debug][State] recover playback from state at ({},{},{}) startTick={} song={}",
-                    this.x, this.y, this.z, startTick, this.songName);
-        }
-        new MusicToClientMessage(this.x, this.y, this.z, this.songUrl, this.songTime, this.songName, startTick).apply(entityPlayer);
+        int startTick = TileEntityMusicPlayer.computeStartTick(this.songTime, this.currentTime);
+        MusicToClientMessage.applyClientPlayback(entityPlayer, this.x, this.y, this.z,
+                this.songUrl, this.songTime, this.songName, startTick, false);
     }
 
     @Override
     public ResourceLocation getChannel() {
         return ID;
-    }
-
-    private static int computeStartTick(int songTimeSecond, int currentTime) {
-        int totalTicks = Math.max(1, songTimeSecond) * 20;
-        int remainingMusicTicks = Math.max(0, currentTime - 64);
-        return Math.max(0, Math.min(totalTicks, totalTicks - remainingMusicTicks));
     }
 
     private static boolean shouldAttemptRecovery(String key, long now) {

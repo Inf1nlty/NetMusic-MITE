@@ -9,6 +9,7 @@ import net.minecraft.EntityPlayer;
 import net.minecraft.EnumChatFormatting;
 import net.minecraft.Item;
 import net.minecraft.ItemStack;
+import net.minecraft.Material;
 import net.minecraft.NBTBase;
 import net.minecraft.NBTTagCompound;
 import net.minecraft.NBTTagList;
@@ -26,6 +27,7 @@ public class ItemMusicCD extends Item {
 
     public ItemMusicCD() {
         super(IdUtil.getNextItemID(), "music_cd");
+        this.setMaterial(Material.paper);
         this.setCreativeTab(NetMusicCreativeTab.TAB);
     }
 

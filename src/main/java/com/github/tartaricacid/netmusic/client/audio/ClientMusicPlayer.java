@@ -165,16 +165,19 @@ public final class ClientMusicPlayer {
              InputStream prepared = prepareAudioStream(remote);
              AudioInputStream compressed = AudioSystem.getAudioInputStream(prepared)) {
             AudioFormat base = compressed.getFormat();
-            AudioFormat decoded = new AudioFormat(AudioFormat.Encoding.PCM_SIGNED,
-                    base.getSampleRate(), 16, base.getChannels(), base.getChannels() * 2,
-                    base.getSampleRate(), false);
+            AudioFormat decoded = chooseDecodedPcmFormat(base);
+            if (decoded == null) {
+                throw new IllegalArgumentException("Unsupported conversion from " + base + " to PCM");
+            }
 
             try (AudioInputStream pcm = AudioSystem.getAudioInputStream(decoded, compressed)) {
-                AudioFormat finalFormat = applyStereoConfig(base);
-                DataLine.Info info = new DataLine.Info(SourceDataLine.class, finalFormat);
+                AudioFormat finalFormat = applyStereoConfig(decoded);
+                AudioFormat pcmFormat = pcm.getFormat();
+                AudioFormat playbackFormat = AudioSystem.isConversionSupported(finalFormat, pcmFormat) ? finalFormat : pcmFormat;
+                DataLine.Info info = new DataLine.Info(SourceDataLine.class, playbackFormat);
                 try (SourceDataLine line = (SourceDataLine) AudioSystem.getLine(info)) {
-                    try (AudioInputStream finalPcm = AudioSystem.getAudioInputStream(finalFormat, pcm)) {
-                        line.open(finalFormat);
+                    try (AudioInputStream finalPcm = AudioSystem.getAudioInputStream(playbackFormat, pcm)) {
+                        line.open(playbackFormat);
                         line.start();
                         byte[] buffer = new byte[8192];
                         int read;
@@ -201,7 +204,7 @@ public final class ClientMusicPlayer {
                             if (read == -1) {
                                 break;
                             }
-                            applyPcmVolume(buffer, read, dynamicVolume);
+                            applyPcmVolume(buffer, read, dynamicVolume, playbackFormat.getSampleSizeInBits(), playbackFormat.isBigEndian());
                             line.write(buffer, 0, read);
                         }
                         line.drain();
@@ -247,16 +250,36 @@ public final class ClientMusicPlayer {
         return input;
     }
 
+    private static AudioFormat chooseDecodedPcmFormat(AudioFormat source) {
+        int channels = Math.max(1, source.getChannels());
+        float sampleRate = source.getSampleRate() > 0 ? source.getSampleRate() : 44100.0F;
+
+        int sourceBits = source.getSampleSizeInBits();
+        int[] candidateBits = sourceBits > 16 ? new int[]{24, 16, 32} : new int[]{16, 24, 32};
+        for (int bits : candidateBits) {
+            if (bits <= 0 || bits % 8 != 0) {
+                continue;
+            }
+            AudioFormat candidate = new AudioFormat(AudioFormat.Encoding.PCM_SIGNED, sampleRate, bits,
+                    channels, channels * (bits / 8), sampleRate, false);
+            if (AudioSystem.isConversionSupported(candidate, source)) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
     private static AudioFormat applyStereoConfig(AudioFormat base) {
         // Preserve the original mod's behavior: if stereo is enabled, force 1 channel, else 2 channels.
         // This looks inverted but matches upstream logic and avoids subtle regressions.
+        int sampleBits = base.getSampleSizeInBits() > 0 ? base.getSampleSizeInBits() : 16;
         if (com.github.tartaricacid.netmusic.config.GeneralConfig.ENABLE_STEREO) {
-            return new AudioFormat(AudioFormat.Encoding.PCM_SIGNED, base.getSampleRate(), 16, 1, 2, base.getSampleRate(), false);
+            return new AudioFormat(AudioFormat.Encoding.PCM_SIGNED, base.getSampleRate(), sampleBits, 1, Math.max(1, sampleBits / 8), base.getSampleRate(), false);
         }
-        return new AudioFormat(AudioFormat.Encoding.PCM_SIGNED, base.getSampleRate(), 16, 2, 4, base.getSampleRate(), false);
+        return new AudioFormat(AudioFormat.Encoding.PCM_SIGNED, base.getSampleRate(), sampleBits, 2, 2 * Math.max(1, sampleBits / 8), base.getSampleRate(), false);
     }
 
-    private static void applyPcmVolume(byte[] buffer, int length, float volume) {
+    private static void applyPcmVolume(byte[] buffer, int length, float volume, int sampleBits, boolean bigEndian) {
         if (buffer == null || length <= 1) {
             return;
         }
@@ -264,18 +287,75 @@ public final class ClientMusicPlayer {
         if (Math.abs(clampedVolume - 1.0F) < 1.0e-4F) {
             return;
         }
+        if (sampleBits == 16) {
+            applyVolume16(buffer, length, clampedVolume, bigEndian);
+            return;
+        }
+        if (sampleBits == 24) {
+            applyVolume24(buffer, length, clampedVolume, bigEndian);
+        }
+    }
+
+    private static void applyVolume16(byte[] buffer, int length, float volume, boolean bigEndian) {
         for (int i = 0; i + 1 < length; i += 2) {
-            int lo = buffer[i] & 0xFF;
-            int hi = buffer[i + 1];
-            short sample = (short) ((hi << 8) | lo);
-            int scaled = Math.round(sample * clampedVolume);
+            int sample;
+            if (bigEndian) {
+                int hi = buffer[i];
+                int lo = buffer[i + 1] & 0xFF;
+                sample = (short) ((hi << 8) | lo);
+            } else {
+                int lo = buffer[i] & 0xFF;
+                int hi = buffer[i + 1];
+                sample = (short) ((hi << 8) | lo);
+            }
+            int scaled = Math.round(sample * volume);
             if (scaled > Short.MAX_VALUE) {
                 scaled = Short.MAX_VALUE;
             } else if (scaled < Short.MIN_VALUE) {
                 scaled = Short.MIN_VALUE;
             }
-            buffer[i] = (byte) (scaled & 0xFF);
-            buffer[i + 1] = (byte) ((scaled >> 8) & 0xFF);
+            if (bigEndian) {
+                buffer[i] = (byte) ((scaled >> 8) & 0xFF);
+                buffer[i + 1] = (byte) (scaled & 0xFF);
+            } else {
+                buffer[i] = (byte) (scaled & 0xFF);
+                buffer[i + 1] = (byte) ((scaled >> 8) & 0xFF);
+            }
+        }
+    }
+
+    private static void applyVolume24(byte[] buffer, int length, float volume, boolean bigEndian) {
+        for (int i = 0; i + 2 < length; i += 3) {
+            int sample;
+            if (bigEndian) {
+                sample = ((buffer[i] & 0xFF) << 16)
+                        | ((buffer[i + 1] & 0xFF) << 8)
+                        | (buffer[i + 2] & 0xFF);
+            } else {
+                sample = (buffer[i] & 0xFF)
+                        | ((buffer[i + 1] & 0xFF) << 8)
+                        | ((buffer[i + 2] & 0xFF) << 16);
+            }
+            if ((sample & 0x800000) != 0) {
+                sample |= 0xFF000000;
+            }
+
+            int scaled = Math.round(sample * volume);
+            if (scaled > 0x7FFFFF) {
+                scaled = 0x7FFFFF;
+            } else if (scaled < -0x800000) {
+                scaled = -0x800000;
+            }
+
+            if (bigEndian) {
+                buffer[i] = (byte) ((scaled >> 16) & 0xFF);
+                buffer[i + 1] = (byte) ((scaled >> 8) & 0xFF);
+                buffer[i + 2] = (byte) (scaled & 0xFF);
+            } else {
+                buffer[i] = (byte) (scaled & 0xFF);
+                buffer[i + 1] = (byte) ((scaled >> 8) & 0xFF);
+                buffer[i + 2] = (byte) ((scaled >> 16) & 0xFF);
+            }
         }
     }
 

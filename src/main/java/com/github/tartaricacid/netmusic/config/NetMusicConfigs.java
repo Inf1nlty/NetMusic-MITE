@@ -1,5 +1,6 @@
 package com.github.tartaricacid.netmusic.config;
 
+import com.github.tartaricacid.netmusic.NetMusic;
 import fi.dy.masa.malilib.config.SimpleConfigs;
 import fi.dy.masa.malilib.config.options.ConfigBase;
 import fi.dy.masa.malilib.config.options.ConfigBoolean;
@@ -94,7 +95,7 @@ public class NetMusicConfigs extends SimpleConfigs {
         GeneralConfig.QQ_VIP_COOKIE = trim(QQ_VIP_COOKIE.getStringValue());
         GeneralConfig.ORIGINAL_PLAYER_LYRICS_COLOR = normalizeColor(ORIGINAL_PLAYER_LYRICS_COLOR.getStringValue(), "#FFAAAAAA");
         GeneralConfig.TRANSLATED_PLAYER_LYRICS_COLOR = normalizeColor(TRANSLATED_PLAYER_LYRICS_COLOR.getStringValue(), "#FFFFFFFF");
-        com.github.tartaricacid.netmusic.NetMusic.refreshNetEaseApi();
+        NetMusic.refreshNetEaseApi();
     }
 
     private void bindCallbacks() {

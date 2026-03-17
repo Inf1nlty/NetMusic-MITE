@@ -30,6 +30,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public final class QqMusicApi {
+    private static final int DEFAULT_SONG_TIME_SECONDS = 300;
     private static final Pattern URL_SONG_DETAIL = Pattern.compile("^https?://y\\.qq\\.com/n/ryqq(?:_v2)?/songDetail/([A-Za-z0-9]+).*$");
     private static final Pattern URL_PLAY_SONG = Pattern.compile("^https?://i\\.y\\.qq\\.com/v8/playsong\\.html\\?songmid=([A-Za-z0-9]+).*$");
     private static final Pattern URL_QUERY_MID = Pattern.compile("^https?://.*[?&](?:songmid|mid)=([A-Za-z0-9]+).*$");
@@ -116,7 +117,7 @@ public final class QqMusicApi {
         String cookie = sanitizeCookie(GeneralConfig.QQ_VIP_COOKIE);
         String uin = extractUin(cookie);
         TrackInfo trackInfo = getTrackInfoByMid(mid, cookie, uin);
-        if (trackInfo == null || StringUtils.isBlank(trackInfo.songName) || trackInfo.interval <= 0) {
+        if (trackInfo == null || StringUtils.isBlank(trackInfo.songName)) {
             return null;
         }
 
@@ -131,7 +132,7 @@ public final class QqMusicApi {
         ItemMusicCD.SongInfo info = new ItemMusicCD.SongInfo();
         info.songUrl = baseUrl + purl;
         info.songName = trackInfo.songName;
-        info.songTime = trackInfo.interval;
+        info.songTime = normalizeSongTime(trackInfo.interval);
         info.vip = trackInfo.vip;
         if (trackInfo.artists != null) {
             info.artists.addAll(trackInfo.artists);
@@ -267,7 +268,7 @@ public final class QqMusicApi {
         if (midurlinfo == null) {
             return "";
         }
-        int limit = Math.min(midurlinfo.size(), QUALITY_CANDIDATES.length);
+        int limit = midurlinfo.size();
         String bestPurl = "";
         int bestRank = -1;
         for (int i = 0; i < limit; i++) {
@@ -275,7 +276,7 @@ public final class QqMusicApi {
             if (info != null && info.has("purl")) {
                 String purl = info.get("purl").getAsString();
                 if (StringUtils.isNotBlank(purl)) {
-                    int rank = getPlayableRank(purl);
+                    int rank = getPlayableRank(purl, getStringOrEmpty(info, "filename"));
                     if (rank > bestRank) {
                         bestRank = rank;
                         bestPurl = purl;
@@ -286,16 +287,70 @@ public final class QqMusicApi {
         return bestPurl;
     }
 
-    private static int getPlayableRank(String purl) {
+    private static int getPlayableRank(String purl, String filename) {
         if (StringUtils.isBlank(purl)) {
             return -1;
         }
-        String lower = purl.toLowerCase(Locale.ROOT);
-        if (lower.endsWith(".mp3")) {
+        String extension = detectAudioExtension(purl, filename);
+        if ("mp3".equals(extension)) {
             return 3;
         }
-        // In this legacy audio pipeline only MP3 is reliably decodable.
+        if ("flac".equals(extension)) {
+            return 2;
+        }
         return -1;
+    }
+
+    private static String detectAudioExtension(String purl, String filename) {
+        String normalizedPurl = stripQueryAndFragment(purl).toLowerCase(Locale.ROOT);
+        if (normalizedPurl.endsWith(".mp3")) {
+            return "mp3";
+        }
+        if (normalizedPurl.endsWith(".flac")) {
+            return "flac";
+        }
+        String normalizedFilename = StringUtils.defaultString(filename).toLowerCase(Locale.ROOT);
+        if (normalizedFilename.endsWith(".mp3")) {
+            return "mp3";
+        }
+        if (normalizedFilename.endsWith(".flac")) {
+            return "flac";
+        }
+        if (hasMp3PrefixMarker(normalizedPurl) || hasMp3PrefixMarker(normalizedFilename)) {
+            return "mp3";
+        }
+        if (hasFlacPrefixMarker(normalizedPurl) || hasFlacPrefixMarker(normalizedFilename)) {
+            return "flac";
+        }
+        return "";
+    }
+
+    private static boolean hasMp3PrefixMarker(String text) {
+        return text.contains("m800") || text.contains("m500") || text.contains("rs02");
+    }
+
+    private static boolean hasFlacPrefixMarker(String text) {
+        return text.contains("ai00") || text.contains("q000") || text.contains("q001") || text.contains("f000");
+    }
+
+    private static String stripQueryAndFragment(String urlPart) {
+        if (StringUtils.isBlank(urlPart)) {
+            return "";
+        }
+        int cut = urlPart.length();
+        int queryIndex = urlPart.indexOf('?');
+        if (queryIndex >= 0 && queryIndex < cut) {
+            cut = queryIndex;
+        }
+        int fragmentIndex = urlPart.indexOf('#');
+        if (fragmentIndex >= 0 && fragmentIndex < cut) {
+            cut = fragmentIndex;
+        }
+        return urlPart.substring(0, cut);
+    }
+
+    private static int normalizeSongTime(int rawTimeSecond) {
+        return rawTimeSecond > 0 ? rawTimeSecond : DEFAULT_SONG_TIME_SECONDS;
     }
 
     private static String postJson(String url, String body, Map<String, String> requestHeaders) throws IOException {

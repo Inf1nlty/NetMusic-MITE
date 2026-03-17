@@ -138,6 +138,9 @@ public class BlockMusicPlayer extends BlockDirectionalWithTileEntity {
 
     @Override
     public boolean onBlockActivated(World world, int x, int y, int z, EntityPlayer player, EnumFace face, float offsetX, float offsetY, float offsetZ) {
+        if (world.isRemote) {
+            return true;
+        }
         TileEntity tileEntity = world.getBlockTileEntity(x, y, z);
         if (!(tileEntity instanceof TileEntityMusicPlayer musicPlayer)) {
             return false;

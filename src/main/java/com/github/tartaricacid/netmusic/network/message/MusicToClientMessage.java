@@ -161,12 +161,8 @@ public class MusicToClientMessage implements Message {
         }
 
         if (recovery) {
-            synchronized (LYRIC_CACHE) {
-                Long until = LYRIC_MISS_UNTIL.get(key);
-                if (until != null && System.currentTimeMillis() < until.longValue()) {
-                    return null;
-                }
-            }
+            // Recovery path should be lightweight: don't block packet handling on lyric HTTP calls.
+            return null;
         }
 
         LyricRecord resolved = doResolveLyric(url, songName);

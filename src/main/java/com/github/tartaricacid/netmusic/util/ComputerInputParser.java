@@ -32,8 +32,9 @@ public final class ComputerInputParser {
             try {
                 ItemMusicCD.SongInfo qqSong = SongInfoHelper.sanitize(QqMusicApi.resolveSong(urlText));
                 if (qqSong != null) {
+                    qqSong.songUrl = QqMusicApi.toSongDetailUrl(urlText);
                     qqSong.readOnly = readOnly;
-                    return ScreenSubmitResult.success(qqSong);
+                    return ScreenSubmitResult.success(SongInfoHelper.sanitize(qqSong));
                 }
             } catch (Exception e) {
                 // Continue with normal URL parsing when this is not a QQ link.

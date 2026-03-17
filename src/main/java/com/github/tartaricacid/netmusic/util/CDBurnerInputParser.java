@@ -110,8 +110,9 @@ public final class CDBurnerInputParser {
             if (song == null) {
                 return ScreenSubmitResult.fail("gui.netmusic.cd_burner.get_info_error");
             }
+            song.songUrl = QqMusicApi.toSongDetailUrl(input);
             song.readOnly = readOnly;
-            return ScreenSubmitResult.success(song);
+            return ScreenSubmitResult.success(SongInfoHelper.sanitize(song));
         } catch (Exception e) {
             NetMusic.LOGGER.error("Failed to parse QQ song from input: {}", input, e);
             return ScreenSubmitResult.fail("gui.netmusic.cd_burner.get_info_error");

@@ -2,6 +2,7 @@ package com.github.tartaricacid.netmusic.network.message;
 
 import com.github.tartaricacid.netmusic.NetMusic;
 import com.github.tartaricacid.netmusic.client.audio.ClientMusicPlayer;
+import com.github.tartaricacid.netmusic.config.GeneralConfig;
 import com.github.tartaricacid.netmusic.item.ItemMusicCD;
 import com.github.tartaricacid.netmusic.tileentity.TileEntityMusicPlayer;
 import moddedmite.rustedironcore.network.PacketByteBuf;
@@ -16,7 +17,7 @@ import java.util.Map;
 
 public class MusicPlayerStateMessage implements Message {
     public static final ResourceLocation ID = new ResourceLocation(NetMusic.MOD_ID, "music_player_state");
-    private static final long RECOVERY_COOLDOWN_MS = 1500L;
+    private static final long RECOVERY_COOLDOWN_MS = 4000L;
     private static final Map<String, Long> RECOVERY_COOLDOWN = new HashMap<String, Long>();
 
     private final int x;
@@ -98,6 +99,10 @@ public class MusicPlayerStateMessage implements Message {
         int totalTicks = Math.max(1, info.songTime) * 20;
         int remainingMusicTicks = Math.max(0, this.currentTime - 64);
         int startTick = Math.max(0, Math.min(totalTicks, totalTicks - remainingMusicTicks));
+        if (GeneralConfig.ENABLE_DEBUG_MODE) {
+            NetMusic.LOGGER.info("[NetMusic Debug][State] recover playback at ({},{},{}) startTick={} url={}",
+                    this.x, this.y, this.z, startTick, info.songUrl);
+        }
         new MusicToClientMessage(this.x, this.y, this.z, info.songUrl, info.songTime, info.songName, startTick).apply(entityPlayer);
     }
 

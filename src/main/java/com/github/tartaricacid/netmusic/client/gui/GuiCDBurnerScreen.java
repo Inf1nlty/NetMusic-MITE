@@ -33,6 +33,14 @@ public class GuiCDBurnerScreen extends GuiContainer {
     private static final Set<String> COOKIE_ATTRIBUTES = Set.of(
             "path", "domain", "expires", "max-age", "httponly", "secure", "samesite", "priority"
     );
+    private static final String[] NETEASE_COOKIE_KEYS = new String[]{
+            "MUSIC_U", "MUSIC_A", "__csrf", "NMTID", "MUSIC_R_T"
+    };
+    private static final String[] QQ_COOKIE_KEYS = new String[]{
+            "uin", "p_uin", "qqmusic_uin",
+            "qm_keyst", "qqmusic_key",
+            "skey", "p_skey"
+    };
     private final CDBurnerMenu menu;
 
     private GuiTextField idField;
@@ -236,7 +244,7 @@ public class GuiCDBurnerScreen extends GuiContainer {
         if (!containsKey(pairs, "MUSIC_U") && !containsKey(pairs, "MUSIC_A")) {
             return "";
         }
-        return joinCookiePairs(pairs);
+        return joinCookiePairs(pickCookiePairs(pairs, NETEASE_COOKIE_KEYS));
     }
 
     private static String buildQqCookie(Map<String, String> pairs) {
@@ -246,7 +254,32 @@ public class GuiCDBurnerScreen extends GuiContainer {
         if (!hasUin || !hasKey) {
             return "";
         }
-        return joinCookiePairs(pairs);
+        return joinCookiePairs(pickCookiePairs(pairs, QQ_COOKIE_KEYS));
+    }
+
+    private static Map<String, String> pickCookiePairs(Map<String, String> source, String[] orderedKeys) {
+        Map<String, String> result = new LinkedHashMap<String, String>();
+        for (String wantedKey : orderedKeys) {
+            String actualKey = findActualKey(source, wantedKey);
+            if (actualKey == null) {
+                continue;
+            }
+            String value = source.get(actualKey);
+            if (value == null || value.isEmpty()) {
+                continue;
+            }
+            result.put(actualKey, value);
+        }
+        return result;
+    }
+
+    private static String findActualKey(Map<String, String> pairs, String key) {
+        for (String existingKey : pairs.keySet()) {
+            if (existingKey.equalsIgnoreCase(key)) {
+                return existingKey;
+            }
+        }
+        return null;
     }
 
     private static String joinCookiePairs(Map<String, String> pairs) {

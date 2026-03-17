@@ -99,15 +99,11 @@ public final class ClientMusicPlayer {
         }
         gamePaused = false;
 
-        // Stop if the player moved too far away (vanilla sound engine would attenuate/stop naturally).
+        // Distance attenuation only: don't hard-stop when out of range, so returning to range resumes audio.
         double dx = mc.thePlayer.posX - (sound.getX() + 0.5D);
         double dy = mc.thePlayer.posY - (sound.getY() + 0.5D);
         double dz = mc.thePlayer.posZ - (sound.getZ() + 0.5D);
         double distSq = dx * dx + dy * dy + dz * dz;
-        if (distSq > (double) (MAX_HEAR_DISTANCE * MAX_HEAR_DISTANCE)) {
-            stopAndClearTile(mc, sound);
-            return;
-        }
         float distance = (float) Math.sqrt(distSq);
         float attenuation = Math.max(0.0F, 1.0F - distance / MAX_HEAR_DISTANCE);
         dynamicVolume = clampVolume((float) GeneralConfig.MUSIC_PLAYER_VOLUME * attenuation);
@@ -115,7 +111,7 @@ public final class ClientMusicPlayer {
         currentTick++;
 
         // Particle effects: spawn note particles periodically while playing.
-        if (mc.theWorld.getTotalWorldTime() % 8L == 0L) {
+        if (attenuation > 0.0F && mc.theWorld.getTotalWorldTime() % 8L == 0L) {
             for (int i = 0; i < 2; i++) {
                 mc.theWorld.spawnParticle(net.minecraft.EnumParticle.note,
                         sound.getX() + RANDOM.nextDouble(),

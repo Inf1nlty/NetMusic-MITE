@@ -6,6 +6,7 @@ import com.github.tartaricacid.netmusic.init.InitItems;
 import com.github.tartaricacid.netmusic.item.ItemMusicCD;
 import com.github.tartaricacid.netmusic.network.NetworkHandler;
 import com.github.tartaricacid.netmusic.network.message.MusicToClientMessage;
+import com.github.tartaricacid.netmusic.network.message.MusicPlayerStateMessage;
 import net.minecraft.ItemStack;
 import net.minecraft.NBTTagCompound;
 import net.minecraft.Packet;
@@ -19,11 +20,15 @@ public class TileEntityMusicPlayer extends TileEntity {
     private static final String CURRENT_TIME_TAG = "CurrentTime";
     private static final String SIGNAL_TAG = "RedStoneSignal";
     private static final String ITEM_TAG = "MusicCd";
+    private static final String ITEM_INFO_TAG = "MusicCdInfo";
+    private static final String ITEM_COUNT_TAG = "MusicCdCount";
+    private static final String ITEM_SUBTYPE_TAG = "MusicCdSubtype";
 
     private ItemStack[] items = new ItemStack[1];
     private boolean isPlay = false;
     private int currentTime;
     private boolean hasSignal = false;
+    private int syncTickCounter = 0;
 
     /**
      * 仅客户端使用，记录当前音乐的歌词信息，用于渲染歌词
@@ -39,10 +44,15 @@ public class TileEntityMusicPlayer extends TileEntity {
         this.isPlay = nbt.getBoolean(IS_PLAY_TAG);
         this.currentTime = nbt.getInteger(CURRENT_TIME_TAG);
         this.hasSignal = nbt.getBoolean(SIGNAL_TAG);
+        NBTTagCompound infoTag = nbt.hasKey(ITEM_INFO_TAG) ? nbt.getCompoundTag(ITEM_INFO_TAG) : null;
+        int savedCount = Math.max(1, nbt.getInteger(ITEM_COUNT_TAG));
+        int savedSubtype = nbt.getInteger(ITEM_SUBTYPE_TAG);
         if (nbt.hasKey(ITEM_TAG)) {
             NBTTagCompound itemTag = nbt.getCompoundTag(ITEM_TAG);
             ItemStack loaded = ItemStack.loadItemStackFromNBT(itemTag);
-            this.items[0] = loaded != null ? loaded : rebuildMusicCdFallback(itemTag);
+            this.items[0] = resolveLoadedMusicCd(loaded, itemTag, infoTag, savedCount, savedSubtype);
+        } else if (infoTag != null) {
+            this.items[0] = rebuildMusicCdFromInfoTag(infoTag, savedCount, savedSubtype);
         } else {
             this.items[0] = null;
         }
@@ -55,7 +65,17 @@ public class TileEntityMusicPlayer extends TileEntity {
         nbt.setInteger(CURRENT_TIME_TAG, this.currentTime);
         nbt.setBoolean(SIGNAL_TAG, this.hasSignal);
         if (this.items[0] != null) {
-            nbt.setCompoundTag(ITEM_TAG, this.items[0].writeToNBT(new NBTTagCompound()));
+            ItemStack stack = this.items[0];
+            nbt.setCompoundTag(ITEM_TAG, stack.writeToNBT(new NBTTagCompound()));
+
+            ItemMusicCD.SongInfo info = ItemMusicCD.getSongInfo(stack);
+            if (info != null) {
+                NBTTagCompound infoTag = new NBTTagCompound();
+                ItemMusicCD.SongInfo.serializeNBT(info, infoTag);
+                nbt.setCompoundTag(ITEM_INFO_TAG, infoTag);
+                nbt.setInteger(ITEM_COUNT_TAG, Math.max(1, stack.stackSize));
+                nbt.setInteger(ITEM_SUBTYPE_TAG, stack.getItemSubtype());
+            }
         }
     }
 
@@ -111,6 +131,7 @@ public class TileEntityMusicPlayer extends TileEntity {
             NetworkHandler.sendToNearBy(this.worldObj, this.xCoord, this.yCoord, this.zCoord,
                     new MusicToClientMessage(this.xCoord, this.yCoord, this.zCoord,
                             info.songUrl, info.songTime, info.songName));
+            this.syncStateToClients();
         }
     }
 
@@ -124,6 +145,9 @@ public class TileEntityMusicPlayer extends TileEntity {
         if (this.worldObj != null) {
             this.worldObj.markBlockForUpdate(this.xCoord, this.yCoord, this.zCoord);
             this.worldObj.markBlockForRenderUpdate(this.xCoord, this.yCoord, this.zCoord);
+            if (!this.worldObj.isRemote) {
+                this.syncStateToClients();
+            }
         }
     }
 
@@ -135,6 +159,11 @@ public class TileEntityMusicPlayer extends TileEntity {
         }
 
         this.tickTime();
+        this.syncTickCounter++;
+        if (this.syncTickCounter >= 40) {
+            this.syncTickCounter = 0;
+            this.syncStateToClients();
+        }
         if (0 < this.currentTime && this.currentTime < 16 && this.currentTime % 5 == 0) {
             int metadata = this.worldObj.getBlockMetadata(this.xCoord, this.yCoord, this.zCoord);
             if (BlockMusicPlayer.isCycleDisabled(metadata)) {
@@ -182,6 +211,48 @@ public class TileEntityMusicPlayer extends TileEntity {
         return new Packet132TileEntityData(this.xCoord, this.yCoord, this.zCoord, 1, nbt);
     }
 
+    public void applyClientSync(boolean play, int currentTime, boolean signal, @Nullable ItemStack stack) {
+        this.isPlay = play;
+        this.currentTime = currentTime;
+        this.hasSignal = signal;
+        this.items[0] = stack;
+        if (stack == null) {
+            this.lyricRecord = null;
+        }
+        if (this.worldObj != null) {
+            this.worldObj.markBlockForRenderUpdate(this.xCoord, this.yCoord, this.zCoord);
+        }
+    }
+
+    private void syncStateToClients() {
+        if (this.worldObj == null || this.worldObj.isRemote) {
+            return;
+        }
+        ItemStack stack = this.items[0] == null ? null : this.items[0].copy();
+        NetworkHandler.sendToNearBy(this.worldObj, this.xCoord, this.yCoord, this.zCoord,
+                new MusicPlayerStateMessage(this.xCoord, this.yCoord, this.zCoord,
+                        this.isPlay, this.currentTime, this.hasSignal, stack));
+    }
+
+    private static ItemStack resolveLoadedMusicCd(@Nullable ItemStack loaded, NBTTagCompound itemTag,
+                                                  @Nullable NBTTagCompound infoTag, int count, int subtype) {
+        if (isValidMusicCdStack(loaded)) {
+            return loaded;
+        }
+        ItemStack rebuilt = rebuildMusicCdFallback(itemTag);
+        if (isValidMusicCdStack(rebuilt)) {
+            return rebuilt;
+        }
+        return rebuildMusicCdFromInfoTag(infoTag, count, subtype);
+    }
+
+    private static boolean isValidMusicCdStack(@Nullable ItemStack stack) {
+        if (stack == null || stack.getItem() != InitItems.MUSIC_CD) {
+            return false;
+        }
+        return ItemMusicCD.getSongInfo(stack) != null;
+    }
+
     private static ItemStack rebuildMusicCdFallback(NBTTagCompound itemTag) {
         if (itemTag == null || !itemTag.hasKey("tag")) {
             return null;
@@ -206,6 +277,19 @@ public class TileEntityMusicPlayer extends TileEntity {
                 (NBTTagCompound) rootTag.getCompoundTag(ItemMusicCD.SONG_INFO_TAG).copy()
         );
         rebuilt.setTagCompound(rebuiltTag);
+        return rebuilt;
+    }
+
+    private static ItemStack rebuildMusicCdFromInfoTag(@Nullable NBTTagCompound infoTag, int count, int subtype) {
+        if (infoTag == null || InitItems.MUSIC_CD == null) {
+            return null;
+        }
+        ItemMusicCD.SongInfo info = ItemMusicCD.SongInfo.deserializeNBT(infoTag);
+        if (info == null || info.songTime <= 0) {
+            return null;
+        }
+        ItemStack rebuilt = new ItemStack(InitItems.MUSIC_CD, Math.max(1, count), subtype);
+        ItemMusicCD.setSongInfo(info, rebuilt);
         return rebuilt;
     }
 }

@@ -17,7 +17,10 @@ import java.net.URL;
 import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -26,7 +29,16 @@ public final class QqMusicApi {
     private static final Pattern URL_PLAY_SONG = Pattern.compile("^https?://i\\.y\\.qq\\.com/v8/playsong\\.html\\?songmid=([A-Za-z0-9]+).*$");
     private static final Pattern URL_QUERY_MID = Pattern.compile("^https?://.*[?&](?:songmid|mid)=([A-Za-z0-9]+).*$");
     private static final Pattern MID_REG = Pattern.compile("^[A-Za-z0-9]{4,}$");
+    private static final Pattern UIN_REG = Pattern.compile("(?i)(?:^|;\\s*)(?:uin|p_uin)=o?(\\d+)");
     private static final String DEFAULT_SIP = "http://ws.stream.qqmusic.qq.com/";
+    private static final String[] QQ_COOKIE_KEYS = new String[]{
+            "uin", "p_uin", "qqmusic_uin",
+            "qm_keyst", "qqmusic_key",
+            "skey", "p_skey"
+    };
+    private static final Set<String> COOKIE_ATTRIBUTES = Set.of(
+            "path", "domain", "expires", "max-age", "httponly", "secure", "samesite", "priority"
+    );
 
     private static final FileCandidate[] QUALITY_CANDIDATES = new FileCandidate[]{
             new FileCandidate("AI00", "flac"),
@@ -76,13 +88,14 @@ public final class QqMusicApi {
         }
 
         String cookie = sanitizeCookie(GeneralConfig.QQ_VIP_COOKIE);
-        TrackInfo trackInfo = getTrackInfoByMid(mid, cookie);
+        String uin = extractUin(cookie);
+        TrackInfo trackInfo = getTrackInfoByMid(mid, cookie, uin);
         if (trackInfo == null || StringUtils.isBlank(trackInfo.songName) || trackInfo.interval <= 0) {
             return null;
         }
 
         String mediaMid = StringUtils.isBlank(trackInfo.mediaMid) ? mid : trackInfo.mediaMid;
-        JsonObject vkeyData = requestVkeyData(mid, mediaMid, buildRequestHeaders(cookie));
+        JsonObject vkeyData = requestVkeyData(mid, mediaMid, buildRequestHeaders(cookie), uin);
         String baseUrl = resolveBaseUrl(vkeyData);
         String purl = selectBestPurl(vkeyData == null ? null : vkeyData.getAsJsonArray("midurlinfo"));
         if (StringUtils.isBlank(purl)) {
@@ -100,10 +113,10 @@ public final class QqMusicApi {
         return info;
     }
 
-    private static TrackInfo getTrackInfoByMid(String mid, String cookie) throws Exception {
+    private static TrackInfo getTrackInfoByMid(String mid, String cookie, String uin) throws Exception {
         String payload = "{\"req_1\":{\"module\":\"music.pf_song_detail_svr\",\"method\":\"get_song_detail\",\"param\":{\"song_mid\":\""
                 + mid
-                + "\",\"song_id\":0},\"loginUin\":\"0\",\"comm\":{\"uin\":\"0\",\"format\":\"json\",\"ct\":24,\"cv\":0}}}";
+                + "\",\"song_id\":0},\"loginUin\":\"" + safeUin(uin) + "\",\"comm\":{\"uin\":\"" + safeUin(uin) + "\",\"format\":\"json\",\"ct\":24,\"cv\":0}}}";
         JsonObject tree = parseJsonObject(postJson("https://u.y.qq.com/cgi-bin/musicu.fcg", payload, buildRequestHeaders(cookie)));
         JsonObject req1 = getObject(tree, "req_1");
         JsonObject data = getObject(req1, "data");
@@ -142,7 +155,7 @@ public final class QqMusicApi {
         return new TrackInfo(songName, interval, mediaMid, vip, info.artists);
     }
 
-    private static JsonObject requestVkeyData(String songMid, String mediaMid, Map<String, String> requestHeaders) throws Exception {
+    private static JsonObject requestVkeyData(String songMid, String mediaMid, Map<String, String> requestHeaders, String uin) throws Exception {
         JsonArray filenameList = new JsonArray();
         JsonArray songMidList = new JsonArray();
         JsonArray songTypeList = new JsonArray();
@@ -157,7 +170,7 @@ public final class QqMusicApi {
         param.addProperty("guid", "10000");
         param.add("songmid", songMidList);
         param.add("songtype", songTypeList);
-        param.addProperty("uin", "0");
+        param.addProperty("uin", safeUin(uin));
         param.addProperty("loginflag", 1);
         param.addProperty("platform", "20");
 
@@ -167,14 +180,14 @@ public final class QqMusicApi {
         req.add("param", param);
 
         JsonObject comm = new JsonObject();
-        comm.addProperty("uin", "0");
+        comm.addProperty("uin", safeUin(uin));
         comm.addProperty("format", "json");
         comm.addProperty("ct", 24);
         comm.addProperty("cv", 0);
 
         JsonObject body = new JsonObject();
         body.add("req_1", req);
-        body.addProperty("loginUin", "0");
+        body.addProperty("loginUin", safeUin(uin));
         body.add("comm", comm);
 
         JsonObject tree = parseJsonObject(postJson("https://u.y.qq.com/cgi-bin/musicu.fcg", body.toString(), requestHeaders));
@@ -296,7 +309,118 @@ public final class QqMusicApi {
     }
 
     private static String sanitizeCookie(String cookie) {
-        return cookie == null ? "" : cookie.trim();
+        if (cookie == null) {
+            return "";
+        }
+        String text = cookie.trim();
+        if (text.isEmpty() || !text.contains("=")) {
+            return text;
+        }
+
+        Map<String, String> parsed = parseCookiePairs(text);
+        if (parsed.isEmpty()) {
+            return text;
+        }
+
+        boolean hasUin = containsKey(parsed, "uin") || containsKey(parsed, "p_uin");
+        boolean hasKey = containsKey(parsed, "qm_keyst") || containsKey(parsed, "qqmusic_key");
+        if (!hasUin || !hasKey) {
+            return text;
+        }
+
+        Map<String, String> picked = pickCookiePairs(parsed, QQ_COOKIE_KEYS);
+        String normalized = joinCookiePairs(picked);
+        return normalized.isEmpty() ? text : normalized;
+    }
+
+    private static String extractUin(String cookie) {
+        if (StringUtils.isBlank(cookie)) {
+            return "0";
+        }
+        Matcher matcher = UIN_REG.matcher(cookie);
+        if (!matcher.find()) {
+            return "0";
+        }
+        String uin = matcher.group(1);
+        return StringUtils.isBlank(uin) ? "0" : uin.trim();
+    }
+
+    private static String safeUin(String uin) {
+        return StringUtils.isBlank(uin) ? "0" : uin;
+    }
+
+    private static boolean containsKey(Map<String, String> pairs, String key) {
+        for (String k : pairs.keySet()) {
+            if (k.equalsIgnoreCase(key)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static Map<String, String> parseCookiePairs(String raw) {
+        Map<String, String> pairs = new LinkedHashMap<String, String>();
+        String[] segments = raw.split("[;\\n]");
+        for (String segment : segments) {
+            String item = segment == null ? "" : segment.trim();
+            if (item.isEmpty()) {
+                continue;
+            }
+            int eq = item.indexOf('=');
+            if (eq <= 0 || eq >= item.length() - 1) {
+                continue;
+            }
+            String key = item.substring(0, eq).trim();
+            String value = item.substring(eq + 1).trim();
+            if (key.isEmpty() || value.isEmpty()) {
+                continue;
+            }
+            String lower = key.toLowerCase(Locale.ROOT);
+            if (COOKIE_ATTRIBUTES.contains(lower)) {
+                continue;
+            }
+            pairs.put(key, value);
+        }
+        return pairs;
+    }
+
+    private static Map<String, String> pickCookiePairs(Map<String, String> source, String[] orderedKeys) {
+        Map<String, String> result = new LinkedHashMap<String, String>();
+        for (String wantedKey : orderedKeys) {
+            String actualKey = findActualKey(source, wantedKey);
+            if (actualKey == null) {
+                continue;
+            }
+            String value = source.get(actualKey);
+            if (StringUtils.isBlank(value)) {
+                continue;
+            }
+            result.put(actualKey, value);
+        }
+        return result;
+    }
+
+    private static String findActualKey(Map<String, String> pairs, String key) {
+        for (String existingKey : pairs.keySet()) {
+            if (existingKey.equalsIgnoreCase(key)) {
+                return existingKey;
+            }
+        }
+        return null;
+    }
+
+    private static String joinCookiePairs(Map<String, String> pairs) {
+        if (pairs == null || pairs.isEmpty()) {
+            return "";
+        }
+        StringBuilder builder = new StringBuilder();
+        for (Map.Entry<String, String> entry : pairs.entrySet()) {
+            if (builder.length() > 0) {
+                builder.append("; ");
+            }
+            builder.append(entry.getKey()).append("=").append(entry.getValue());
+        }
+        return builder.toString();
     }
 
     private static final class FileCandidate {

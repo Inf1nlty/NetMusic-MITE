@@ -16,6 +16,8 @@ public class NetMusicConfigs extends SimpleConfigs {
     public static final ConfigBoolean ENABLE_STEREO = new ConfigBoolean("netmusic.general.enable_stereo", true);
     public static final ConfigString PROXY_TYPE = new ConfigString("netmusic.general.proxy_type", "DIRECT");
     public static final ConfigString PROXY_ADDRESS = new ConfigString("netmusic.general.proxy_address", "");
+    public static final ConfigString CD_PROVIDER = new ConfigString("netmusic.general.cd_provider", "NETEASE");
+    public static final ConfigString QQ_VIP_COOKIE = new ConfigString("netmusic.general.qq_vip_cookie", "");
     public static final ConfigBoolean ENABLE_PLAYER_LYRICS = new ConfigBoolean("netmusic.general.enable_player_lyrics", true);
     public static final ConfigColor ORIGINAL_PLAYER_LYRICS_COLOR = new ConfigColor("netmusic.general.original_player_lyrics_color", "#FFAAAAAA");
     public static final ConfigColor TRANSLATED_PLAYER_LYRICS_COLOR = new ConfigColor("netmusic.general.translated_player_lyrics_color", "#FFFFFFFF");
@@ -28,6 +30,8 @@ public class NetMusicConfigs extends SimpleConfigs {
                 ENABLE_STEREO,
                 PROXY_TYPE,
                 PROXY_ADDRESS,
+                CD_PROVIDER,
+                QQ_VIP_COOKIE,
                 ENABLE_PLAYER_LYRICS,
                 ORIGINAL_PLAYER_LYRICS_COLOR,
                 TRANSLATED_PLAYER_LYRICS_COLOR
@@ -49,6 +53,8 @@ public class NetMusicConfigs extends SimpleConfigs {
         GeneralConfig.ENABLE_PLAYER_LYRICS = ENABLE_PLAYER_LYRICS.getBooleanValue();
         GeneralConfig.PROXY_TYPE = parseProxyType(PROXY_TYPE.getStringValue());
         GeneralConfig.PROXY_ADDRESS = trim(PROXY_ADDRESS.getStringValue());
+        GeneralConfig.CD_PROVIDER = MusicProviderType.fromString(CD_PROVIDER.getStringValue());
+        GeneralConfig.QQ_VIP_COOKIE = trim(QQ_VIP_COOKIE.getStringValue());
         GeneralConfig.ORIGINAL_PLAYER_LYRICS_COLOR = normalizeColor(ORIGINAL_PLAYER_LYRICS_COLOR.getStringValue(), "#FFAAAAAA");
         GeneralConfig.TRANSLATED_PLAYER_LYRICS_COLOR = normalizeColor(TRANSLATED_PLAYER_LYRICS_COLOR.getStringValue(), "#FFFFFFFF");
     }

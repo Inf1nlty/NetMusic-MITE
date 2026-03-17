@@ -1,7 +1,10 @@
 package com.github.tartaricacid.netmusic.util;
 
 import com.github.tartaricacid.netmusic.NetMusic;
+import com.github.tartaricacid.netmusic.api.qq.QqMusicApi;
 import com.github.tartaricacid.netmusic.client.config.MusicListManage;
+import com.github.tartaricacid.netmusic.config.GeneralConfig;
+import com.github.tartaricacid.netmusic.config.MusicProviderType;
 import com.github.tartaricacid.netmusic.item.ItemMusicCD;
 import org.apache.commons.lang3.StringUtils;
 
@@ -20,6 +23,9 @@ public final class CDBurnerInputParser {
     }
 
     public static String normalizeInput(String text) {
+        if (GeneralConfig.CD_PROVIDER == MusicProviderType.QQ) {
+            return QqMusicApi.normalizeInput(text);
+        }
         if (StringUtils.isBlank(text)) {
             return "";
         }
@@ -44,6 +50,13 @@ public final class CDBurnerInputParser {
     }
 
     public static ScreenSubmitResult parseSongInfo(String rawInput, boolean readOnly) {
+        if (GeneralConfig.CD_PROVIDER == MusicProviderType.QQ) {
+            return parseQqSongInfo(rawInput, readOnly);
+        }
+        return parseNeteaseSongInfo(rawInput, readOnly);
+    }
+
+    private static ScreenSubmitResult parseNeteaseSongInfo(String rawInput, boolean readOnly) {
         String input = normalizeInput(rawInput);
         if (StringUtils.isBlank(input)) {
             return ScreenSubmitResult.fail("gui.netmusic.cd_burner.no_music_id");
@@ -83,5 +96,26 @@ public final class CDBurnerInputParser {
         }
     }
 
+    private static ScreenSubmitResult parseQqSongInfo(String rawInput, boolean readOnly) {
+        String input = QqMusicApi.normalizeInput(rawInput);
+        if (StringUtils.isBlank(input)) {
+            return ScreenSubmitResult.fail("gui.netmusic.cd_burner.no_music_id");
+        }
+        if (!QqMusicApi.isValidMid(input)) {
+            return ScreenSubmitResult.fail("gui.netmusic.cd_burner.music_id_error");
+        }
+
+        try {
+            ItemMusicCD.SongInfo song = SongInfoHelper.sanitize(QqMusicApi.resolveSong(input));
+            if (song == null) {
+                return ScreenSubmitResult.fail("gui.netmusic.cd_burner.get_info_error");
+            }
+            song.readOnly = readOnly;
+            return ScreenSubmitResult.success(song);
+        } catch (Exception e) {
+            NetMusic.LOGGER.error("Failed to parse QQ song from input: {}", input, e);
+            return ScreenSubmitResult.fail("gui.netmusic.cd_burner.get_info_error");
+        }
+    }
 }
 

@@ -81,10 +81,12 @@ final class BlockbenchModelRenderer {
         float[] normal = computeNormal(vertices);
         t.setNormal(normal[0], normal[1], normal[2]);
 
-        float u0 = face.u0 / model.textureWidth;
-        float v0 = face.v0 / model.textureHeight;
-        float u1 = face.u1 / model.textureWidth;
-        float v1 = face.v1 / model.textureHeight;
+        // Java block model face UVs are defined in the 0..16 model UV space.
+        // They are not raw texture pixel coordinates, even when texture_size is 64/128.
+        float u0 = face.u0 / 16.0F;
+        float v0 = face.v0 / 16.0F;
+        float u1 = face.u1 / 16.0F;
+        float v1 = face.v1 / 16.0F;
         float[] us = new float[]{u0, u1, u1, u0};
         float[] vs = new float[]{v0, v0, v1, v1};
         rotateUv(us, vs, face.rotation);

@@ -9,6 +9,8 @@ public class GeneralConfig {
     public static boolean ENABLE_STEREO = true;
     public static Proxy.Type PROXY_TYPE = Proxy.Type.DIRECT;
     public static String PROXY_ADDRESS = "";
+    public static MusicProviderType CD_PROVIDER = MusicProviderType.NETEASE;
+    public static String QQ_VIP_COOKIE = "";
 
     public static boolean ENABLE_PLAYER_LYRICS = true;
     public static String ORIGINAL_PLAYER_LYRICS_COLOR = "#FFAAAAAA";

@@ -25,11 +25,15 @@ public class CDBurnerTileEntityRenderer extends TileEntitySpecialRenderer {
 
     public static void renderModelAsItem(int metadata) {
         GL11.glPushMatrix();
-        GL11.glRotatef(90.0F, 0.0F, 1.0F, 0.0F);
+        // Follow the upstream gui display transform from block/cd_burner.json.
+        GL11.glTranslatef(0.5F, 0.5F, 0.5F);
+        GL11.glTranslatef(0.0F, -3.25F / 16.0F, 0.0F);
+        GL11.glRotatef(10.0F, 1.0F, 0.0F, 0.0F);
+        GL11.glRotatef(145.0F, 0.0F, 1.0F, 0.0F);
+        GL11.glScalef(0.42F, 0.42F, 0.42F);
         GL11.glTranslatef(-0.5F, -0.5F, -0.5F);
         GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
-        // Match upstream item pose: WEST-facing regardless of item metadata.
-        renderModel(1, null);
+        renderModel(2, null);
         GL11.glPopMatrix();
     }
 

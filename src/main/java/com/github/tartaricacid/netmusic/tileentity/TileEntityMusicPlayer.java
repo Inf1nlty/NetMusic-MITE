@@ -32,7 +32,6 @@ public class TileEntityMusicPlayer extends TileEntity {
     private static final String ITEM_INFO_TAG = "MusicCdInfo";
     private static final String ITEM_COUNT_TAG = "MusicCdCount";
     private static final String ITEM_SUBTYPE_TAG = "MusicCdSubtype";
-    private static final int AUDIENCE_RESYNC_INTERVAL_TICKS = 40;
 
     private ItemStack[] items = new ItemStack[1];
     private boolean isPlay = false;
@@ -41,7 +40,6 @@ public class TileEntityMusicPlayer extends TileEntity {
     private int syncTickCounter = 0;
     private int audienceSyncTickCounter = 0;
     private final Set<Integer> activeAudience = new HashSet<Integer>();
-    private final Map<Integer, Integer> audienceLastSyncTick = new HashMap<Integer, Integer>();
     private @Nullable ItemMusicCD.SongInfo activeSongInfo;
 
     /**
@@ -147,7 +145,6 @@ public class TileEntityMusicPlayer extends TileEntity {
         this.isPlay = true;
         if (this.worldObj != null && !this.worldObj.isRemote && info != null) {
             this.activeAudience.clear();
-            this.audienceLastSyncTick.clear();
             this.syncAudiencePlayback(info, true);
             this.syncStateToClients();
         }
@@ -287,11 +284,8 @@ public class TileEntityMusicPlayer extends TileEntity {
         if (!this.isPlay || info == null || info.songTime <= 0 || info.songUrl == null || info.songUrl.isEmpty()) {
             this.broadcastStopToActiveAudience(onlinePlayers);
             this.activeAudience.clear();
-            this.audienceLastSyncTick.clear();
             return;
         }
-
-        int nowTick = getWorldTick(this.worldObj);
         double radius = Math.max(1.0D, GeneralConfig.MUSIC_PLAYER_HEAR_DISTANCE);
         double radiusSq = radius * radius;
         Set<Integer> nextAudience = new HashSet<Integer>();
@@ -306,10 +300,9 @@ public class TileEntityMusicPlayer extends TileEntity {
             }
             Integer id = Integer.valueOf(playerId);
             boolean wasActive = this.activeAudience.contains(id);
-            boolean shouldResync = forceResend || !wasActive || shouldPeriodicResync(id, nowTick);
+            boolean shouldResync = forceResend || !wasActive;
             if (shouldResync) {
                 this.sendPlayToPlayer(player, info);
-                this.audienceLastSyncTick.put(id, nowTick);
             }
             nextAudience.add(id);
         }
@@ -322,7 +315,6 @@ public class TileEntityMusicPlayer extends TileEntity {
             if (player != null) {
                 this.sendStopToPlayer(player);
             }
-            this.audienceLastSyncTick.remove(playerId);
         }
 
         this.activeAudience.clear();
@@ -357,7 +349,6 @@ public class TileEntityMusicPlayer extends TileEntity {
             }
         }
         this.activeAudience.clear();
-        this.audienceLastSyncTick.clear();
     }
 
     private void sendPlayToPlayer(ServerPlayer player, ItemMusicCD.SongInfo info) {
@@ -383,33 +374,6 @@ public class TileEntityMusicPlayer extends TileEntity {
                     player.getEntityName(), this.xCoord, this.yCoord, this.zCoord);
         }
         NetworkHandler.sendToClientPlayer(new MusicToClientMessage(this.xCoord, this.yCoord, this.zCoord, "", 0, ""), player);
-    }
-
-    private boolean shouldPeriodicResync(Integer playerId, int nowTick) {
-        if (playerId == null) {
-            return true;
-        }
-        Integer last = this.audienceLastSyncTick.get(playerId);
-        if (last == null) {
-            return true;
-        }
-        int elapsed = nowTick - last.intValue();
-        if (elapsed < 0) {
-            return true;
-        }
-        return elapsed >= AUDIENCE_RESYNC_INTERVAL_TICKS;
-    }
-
-    private static int getWorldTick(World world) {
-        if (world == null) {
-            return 0;
-        }
-        long total = world.getTotalWorldTime();
-        if (total <= 0L) {
-            return 0;
-        }
-        long cap = Integer.MAX_VALUE;
-        return (int) (total % cap);
     }
 
     private static int computeStartTick(int songTimeSecond, int currentTime) {

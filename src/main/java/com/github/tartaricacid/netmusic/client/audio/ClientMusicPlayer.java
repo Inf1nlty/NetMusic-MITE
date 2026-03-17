@@ -313,30 +313,37 @@ public final class ClientMusicPlayer {
     private static AudioFormat chooseDecodedPcmFormat(AudioFormat source) {
         int channels = Math.max(1, source.getChannels());
         float sampleRate = source.getSampleRate() > 0 ? source.getSampleRate() : 44100.0F;
-
-        int sourceBits = source.getSampleSizeInBits();
-        int[] candidateBits = sourceBits > 16 ? new int[]{24, 16, 32} : new int[]{16, 24, 32};
-        for (int bits : candidateBits) {
-            if (bits <= 0 || bits % 8 != 0) {
+        float[] sampleRates = new float[]{sampleRate, 48000.0F, 44100.0F};
+        int[] candidateBits = new int[]{16, 24, 32};
+        for (float rate : sampleRates) {
+            if (rate <= 0 || isAlmostDuplicateRate(rate, sampleRate) && rate != sampleRate) {
                 continue;
             }
-            AudioFormat candidate = new AudioFormat(AudioFormat.Encoding.PCM_SIGNED, sampleRate, bits,
-                    channels, channels * (bits / 8), sampleRate, false);
-            if (AudioSystem.isConversionSupported(candidate, source)) {
-                return candidate;
+            for (int bits : candidateBits) {
+                if (bits <= 0 || bits % 8 != 0) {
+                    continue;
+                }
+                AudioFormat candidate = new AudioFormat(AudioFormat.Encoding.PCM_SIGNED, rate, bits,
+                        channels, channels * (bits / 8), rate, false);
+                if (AudioSystem.isConversionSupported(candidate, source)) {
+                    return candidate;
+                }
             }
         }
         return null;
     }
 
+    private static boolean isAlmostDuplicateRate(float rateA, float rateB) {
+        return Math.abs(rateA - rateB) < 1.0F;
+    }
+
     private static AudioFormat applyStereoConfig(AudioFormat base) {
-        // Preserve the original mod's behavior: if stereo is enabled, force 1 channel, else 2 channels.
-        // This looks inverted but matches upstream logic and avoids subtle regressions.
+        // Respect config semantics directly: stereo=true outputs 2 channels, else mono.
         int sampleBits = base.getSampleSizeInBits() > 0 ? base.getSampleSizeInBits() : 16;
         if (com.github.tartaricacid.netmusic.config.GeneralConfig.ENABLE_STEREO) {
-            return new AudioFormat(AudioFormat.Encoding.PCM_SIGNED, base.getSampleRate(), sampleBits, 1, Math.max(1, sampleBits / 8), base.getSampleRate(), false);
+            return new AudioFormat(AudioFormat.Encoding.PCM_SIGNED, base.getSampleRate(), sampleBits, 2, 2 * Math.max(1, sampleBits / 8), base.getSampleRate(), false);
         }
-        return new AudioFormat(AudioFormat.Encoding.PCM_SIGNED, base.getSampleRate(), sampleBits, 2, 2 * Math.max(1, sampleBits / 8), base.getSampleRate(), false);
+        return new AudioFormat(AudioFormat.Encoding.PCM_SIGNED, base.getSampleRate(), sampleBits, 1, Math.max(1, sampleBits / 8), base.getSampleRate(), false);
     }
 
     private static void applyPcmVolume(byte[] buffer, int length, float volume, int sampleBits, boolean bigEndian) {
@@ -443,19 +450,35 @@ public final class ClientMusicPlayer {
         if (targetBytes <= 0L) {
             return;
         }
-        skipFully(stream, targetBytes);
+        try {
+            skipFully(stream, targetBytes);
+        } catch (RuntimeException runtimeException) {
+            // Some decoders (notably certain FLAC SPI chains) don't support stable skip semantics.
+            // Don't abort playback; just start from the beginning instead of crashing stream setup.
+            NetMusic.LOGGER.warn("Failed to seek audio stream to start tick {}, fallback to start-from-beginning", startTick, runtimeException);
+        }
     }
 
     private static void skipFully(InputStream input, long bytes) throws java.io.IOException {
         long remaining = bytes;
         byte[] discard = new byte[4096];
         while (remaining > 0) {
-            long skipped = input.skip(remaining);
+            long skipped;
+            try {
+                skipped = input.skip(remaining);
+            } catch (RuntimeException runtimeException) {
+                throw runtimeException;
+            }
             if (skipped > 0) {
                 remaining -= skipped;
                 continue;
             }
-            int read = input.read(discard, 0, (int) Math.min(discard.length, remaining));
+            int read;
+            try {
+                read = input.read(discard, 0, (int) Math.min(discard.length, remaining));
+            } catch (RuntimeException runtimeException) {
+                throw runtimeException;
+            }
             if (read <= 0) {
                 break;
             }

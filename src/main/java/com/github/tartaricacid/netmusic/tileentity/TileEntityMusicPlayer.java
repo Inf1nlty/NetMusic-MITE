@@ -2,6 +2,7 @@ package com.github.tartaricacid.netmusic.tileentity;
 
 import com.github.tartaricacid.netmusic.api.lyric.LyricRecord;
 import com.github.tartaricacid.netmusic.block.BlockMusicPlayer;
+import com.github.tartaricacid.netmusic.config.GeneralConfig;
 import com.github.tartaricacid.netmusic.init.InitItems;
 import com.github.tartaricacid.netmusic.item.ItemMusicCD;
 import com.github.tartaricacid.netmusic.network.NetworkHandler;
@@ -11,9 +12,14 @@ import net.minecraft.ItemStack;
 import net.minecraft.NBTTagCompound;
 import net.minecraft.Packet;
 import net.minecraft.Packet132TileEntityData;
+import net.minecraft.ServerPlayer;
 import net.minecraft.TileEntity;
 
 import javax.annotation.Nullable;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 public class TileEntityMusicPlayer extends TileEntity {
     private static final String IS_PLAY_TAG = "IsPlay";
@@ -29,6 +35,8 @@ public class TileEntityMusicPlayer extends TileEntity {
     private int currentTime;
     private boolean hasSignal = false;
     private int syncTickCounter = 0;
+    private int audienceSyncTickCounter = 0;
+    private final Set<Integer> activeAudience = new HashSet<Integer>();
 
     /**
      * 仅客户端使用，记录当前音乐的歌词信息，用于渲染歌词
@@ -118,8 +126,7 @@ public class TileEntityMusicPlayer extends TileEntity {
 
     public void setPlay(boolean play) {
         if (this.isPlay && !play && this.worldObj != null && !this.worldObj.isRemote) {
-            NetworkHandler.sendToNearBy(this.worldObj, this.xCoord, this.yCoord, this.zCoord,
-                    new MusicToClientMessage(this.xCoord, this.yCoord, this.zCoord, "", 0, ""));
+            this.broadcastStopToActiveAudience();
         }
         isPlay = play;
     }
@@ -128,9 +135,8 @@ public class TileEntityMusicPlayer extends TileEntity {
         this.setCurrentTime(info.songTime * 20 + 64);
         this.isPlay = true;
         if (this.worldObj != null && !this.worldObj.isRemote && info != null) {
-            NetworkHandler.sendToNearBy(this.worldObj, this.xCoord, this.yCoord, this.zCoord,
-                    new MusicToClientMessage(this.xCoord, this.yCoord, this.zCoord,
-                            info.songUrl, info.songTime, info.songName));
+            this.activeAudience.clear();
+            this.syncAudiencePlayback(info, true);
             this.syncStateToClients();
         }
     }
@@ -160,7 +166,12 @@ public class TileEntityMusicPlayer extends TileEntity {
 
         this.tickTime();
         this.syncTickCounter++;
-        if (this.syncTickCounter >= 10) {
+        this.audienceSyncTickCounter++;
+        if (this.audienceSyncTickCounter >= 10) {
+            this.audienceSyncTickCounter = 0;
+            this.syncAudiencePlayback(null, false);
+        }
+        if (this.syncTickCounter >= 20) {
             this.syncTickCounter = 0;
             this.syncStateToClients();
         }
@@ -236,6 +247,113 @@ public class TileEntityMusicPlayer extends TileEntity {
         NetworkHandler.sendToNearBy(this.worldObj, this.xCoord, this.yCoord, this.zCoord,
                 new MusicPlayerStateMessage(this.xCoord, this.yCoord, this.zCoord,
                         this.isPlay, this.currentTime, this.hasSignal, stack, songUrl, songTime, songName));
+    }
+
+    private void syncAudiencePlayback(@Nullable ItemMusicCD.SongInfo knownInfo, boolean forceResend) {
+        if (this.worldObj == null || this.worldObj.isRemote) {
+            return;
+        }
+        Map<Integer, ServerPlayer> onlinePlayers = collectOnlinePlayers();
+        if (onlinePlayers.isEmpty()) {
+            this.activeAudience.clear();
+            return;
+        }
+
+        this.activeAudience.retainAll(onlinePlayers.keySet());
+        ItemMusicCD.SongInfo info = knownInfo;
+        if (info == null) {
+            ItemStack stack = this.items[0];
+            info = stack == null ? null : ItemMusicCD.getSongInfo(stack);
+        }
+        if (!this.isPlay || info == null || info.songTime <= 0 || info.songUrl == null || info.songUrl.isEmpty()) {
+            this.broadcastStopToActiveAudience(onlinePlayers);
+            this.activeAudience.clear();
+            return;
+        }
+
+        double radius = Math.max(1.0D, GeneralConfig.MUSIC_PLAYER_HEAR_DISTANCE);
+        double radiusSq = radius * radius;
+        Set<Integer> inRange = new HashSet<Integer>();
+        for (Map.Entry<Integer, ServerPlayer> entry : onlinePlayers.entrySet()) {
+            ServerPlayer player = entry.getValue();
+            if (player == null) {
+                continue;
+            }
+            int playerId = entry.getKey().intValue();
+            if (player.getDistanceSq(this.xCoord + 0.5D, this.yCoord + 0.5D, this.zCoord + 0.5D) > radiusSq) {
+                continue;
+            }
+            inRange.add(Integer.valueOf(playerId));
+            if (forceResend || !this.activeAudience.contains(Integer.valueOf(playerId))) {
+                this.sendPlayToPlayer(player, info);
+            }
+        }
+
+        for (Integer playerId : new HashSet<Integer>(this.activeAudience)) {
+            if (inRange.contains(playerId)) {
+                continue;
+            }
+            ServerPlayer player = onlinePlayers.get(playerId);
+            if (player != null) {
+                this.sendStopToPlayer(player);
+            }
+        }
+
+        this.activeAudience.clear();
+        this.activeAudience.addAll(inRange);
+    }
+
+    private Map<Integer, ServerPlayer> collectOnlinePlayers() {
+        Map<Integer, ServerPlayer> players = new HashMap<Integer, ServerPlayer>();
+        if (this.worldObj == null || this.worldObj.playerEntities == null) {
+            return players;
+        }
+        for (Object obj : this.worldObj.playerEntities) {
+            if (obj instanceof ServerPlayer player) {
+                players.put(Integer.valueOf(player.entityId), player);
+            }
+        }
+        return players;
+    }
+
+    private void broadcastStopToActiveAudience() {
+        this.broadcastStopToActiveAudience(this.collectOnlinePlayers());
+    }
+
+    private void broadcastStopToActiveAudience(Map<Integer, ServerPlayer> onlinePlayers) {
+        if (this.activeAudience.isEmpty()) {
+            return;
+        }
+        for (Integer playerId : new HashSet<Integer>(this.activeAudience)) {
+            ServerPlayer player = onlinePlayers.get(playerId);
+            if (player != null) {
+                this.sendStopToPlayer(player);
+            }
+        }
+        this.activeAudience.clear();
+    }
+
+    private void sendPlayToPlayer(ServerPlayer player, ItemMusicCD.SongInfo info) {
+        if (player == null || info == null) {
+            return;
+        }
+        int startTick = computeStartTick(info.songTime, this.currentTime);
+        NetworkHandler.sendToClientPlayer(new MusicToClientMessage(
+                this.xCoord, this.yCoord, this.zCoord, info.songUrl, info.songTime, info.songName, startTick
+        ), player);
+    }
+
+    private void sendStopToPlayer(ServerPlayer player) {
+        if (player == null) {
+            return;
+        }
+        NetworkHandler.sendToClientPlayer(new MusicToClientMessage(this.xCoord, this.yCoord, this.zCoord, "", 0, ""), player);
+    }
+
+    private static int computeStartTick(int songTimeSecond, int currentTime) {
+        int totalTicks = Math.max(1, songTimeSecond) * 20;
+        int remainingMusicTicks = Math.max(0, currentTime - 64);
+        return Math.max(0, Math.min(totalTicks, totalTicks - remainingMusicTicks));
     }
 
     private static ItemStack resolveLoadedMusicCd(@Nullable ItemStack loaded, NBTTagCompound itemTag,

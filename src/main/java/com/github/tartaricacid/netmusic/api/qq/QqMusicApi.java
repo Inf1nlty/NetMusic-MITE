@@ -327,37 +327,40 @@ public final class QqMusicApi {
             return -1;
         }
         String extension = detectAudioExtension(purl, filename);
-        if ("flac".equals(extension)) {
-            return 10 + getQualityBonus(purl, filename);
-        }
         if ("mp3".equals(extension)) {
-            return 5 + getQualityBonus(purl, filename);
+            return 100 + getQualityBonus(purl, filename);
+        }
+        if ("flac".equals(extension)) {
+            // FLAC works for some environments but may fail to seek/skip reliably in others.
+            // Keep it as fallback behind MP3 for cross-client stability.
+            return 40 + getQualityBonus(purl, filename);
         }
         return -1;
     }
 
     private static int getQualityBonus(String purl, String filename) {
         String merged = ((purl == null ? "" : purl) + " " + (filename == null ? "" : filename)).toLowerCase(Locale.ROOT);
-        if (merged.contains("f000")) {
-            return 40;
-        }
-        if (merged.contains("q001")) {
-            return 36;
-        }
-        if (merged.contains("q000")) {
-            return 34;
-        }
-        if (merged.contains("ai00")) {
-            return 32;
-        }
         if (merged.contains("m800")) {
-            return 24;
+            return 30;
         }
         if (merged.contains("m500")) {
             return 20;
         }
         if (merged.contains("rs02")) {
-            return 16;
+            return 10;
+        }
+        // FLAC family bonus remains lower than high bitrate MP3.
+        if (merged.contains("f000")) {
+            return 6;
+        }
+        if (merged.contains("q001")) {
+            return 5;
+        }
+        if (merged.contains("q000")) {
+            return 4;
+        }
+        if (merged.contains("ai00")) {
+            return 3;
         }
         return 0;
     }

@@ -13,16 +13,17 @@ import java.util.List;
 
 public class NetMusicConfigs extends SimpleConfigs {
     private static final NetMusicConfigs INSTANCE;
+    private static final String KEY_PREFIX = "netmusic.general.";
 
-    public static final ConfigBoolean ENABLE_STEREO = new ConfigBoolean("netmusic.general.enable_stereo", true);
-    public static final ConfigString PROXY_TYPE = new ConfigString("netmusic.general.proxy_type", "DIRECT");
-    public static final ConfigString PROXY_ADDRESS = new ConfigString("netmusic.general.proxy_address", "");
-    public static final ConfigEnum<MusicProviderType> CD_PROVIDER = new ConfigEnum<>("netmusic.general.cd_provider", MusicProviderType.NETEASE);
-    public static final ConfigString NETEASE_VIP_COOKIE = new ConfigString("netmusic.general.netease_vip_cookie", "");
-    public static final ConfigString QQ_VIP_COOKIE = new ConfigString("netmusic.general.qq_vip_cookie", "");
-    public static final ConfigBoolean ENABLE_PLAYER_LYRICS = new ConfigBoolean("netmusic.general.enable_player_lyrics", true);
-    public static final ConfigColor ORIGINAL_PLAYER_LYRICS_COLOR = new ConfigColor("netmusic.general.original_player_lyrics_color", "#FFAAAAAA");
-    public static final ConfigColor TRANSLATED_PLAYER_LYRICS_COLOR = new ConfigColor("netmusic.general.translated_player_lyrics_color", "#FFFFFFFF");
+    public static final ConfigBoolean ENABLE_STEREO = boolOption("enable_stereo", true);
+    public static final ConfigString PROXY_TYPE = stringOption("proxy_type", "DIRECT");
+    public static final ConfigString PROXY_ADDRESS = stringOption("proxy_address", "");
+    public static final ConfigEnum<MusicProviderType> CD_PROVIDER = enumOption("cd_provider", MusicProviderType.NETEASE);
+    public static final ConfigString NETEASE_VIP_COOKIE = stringOption("netease_vip_cookie", "");
+    public static final ConfigString QQ_VIP_COOKIE = stringOption("qq_vip_cookie", "");
+    public static final ConfigBoolean ENABLE_PLAYER_LYRICS = boolOption("enable_player_lyrics", true);
+    public static final ConfigColor ORIGINAL_PLAYER_LYRICS_COLOR = colorOption("original_player_lyrics_color", "#FFAAAAAA");
+    public static final ConfigColor TRANSLATED_PLAYER_LYRICS_COLOR = colorOption("translated_player_lyrics_color", "#FFFFFFFF");
 
     public static final List<ConfigBase<?>> VALUES;
     public static final List<ConfigHotkey> HOTKEYS = List.of();
@@ -91,5 +92,29 @@ public class NetMusicConfigs extends SimpleConfigs {
 
     private static String trim(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    private static String optionKey(String name) {
+        return KEY_PREFIX + name;
+    }
+
+    private static ConfigBoolean boolOption(String name, boolean defaultValue) {
+        String key = optionKey(name);
+        return new ConfigBoolean(key, defaultValue, key);
+    }
+
+    private static ConfigString stringOption(String name, String defaultValue) {
+        String key = optionKey(name);
+        return new ConfigString(key, defaultValue, key);
+    }
+
+    private static ConfigColor colorOption(String name, String defaultValue) {
+        String key = optionKey(name);
+        return new ConfigColor(key, defaultValue, key);
+    }
+
+    private static <E extends Enum<E>> ConfigEnum<E> enumOption(String name, E defaultValue) {
+        String key = optionKey(name);
+        return new ConfigEnum<>(key, defaultValue, key);
     }
 }

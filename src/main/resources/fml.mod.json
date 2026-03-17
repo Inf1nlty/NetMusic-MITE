@@ -33,7 +33,7 @@
       "com.github.tartaricacid.netmusic.client.NetMusicClient"
     ],
     "modmenu": [
-      "om.github.tartaricacid.netmusic.compat.modmenu.ModMenuApiImpl"
+      "com.github.tartaricacid.netmusic.compat.modmenu.ModMenuApiImpl"
     ]
   },
   "mixins": [

@@ -1,9 +1,12 @@
 package com.github.tartaricacid.netmusic.client.audio;
 
 import com.github.tartaricacid.netmusic.NetMusic;
+import com.github.tartaricacid.netmusic.api.netease.NeteaseVipMusicApi;
 import com.github.tartaricacid.netmusic.api.NetWorker;
+import com.github.tartaricacid.netmusic.config.GeneralConfig;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
+import org.apache.commons.lang3.StringUtils;
 
 import java.io.File;
 import java.io.IOException;
@@ -20,6 +23,14 @@ public final class MusicPlayManager {
 
     public static void play(String url, String songName, Function<URL, Object> sound) {
         String rawUrl = url;
+        if (url.startsWith(MUSIC_163_URL)) {
+            if (GeneralConfig.hasNeteaseVipCookie()) {
+                String vipUrl = NeteaseVipMusicApi.resolveByOuterUrl(url);
+                if (StringUtils.isNotBlank(vipUrl)) {
+                    url = vipUrl;
+                }
+            }
+        }
         if (url.startsWith(MUSIC_163_URL)) {
             try {
                 url = NetWorker.getRedirectUrl(url, NetMusic.NET_EASE_WEB_API.getRequestPropertyData());

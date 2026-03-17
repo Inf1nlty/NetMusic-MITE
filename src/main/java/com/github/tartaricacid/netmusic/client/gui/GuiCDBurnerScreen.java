@@ -1,6 +1,9 @@
 package com.github.tartaricacid.netmusic.client.gui;
 
 import com.github.tartaricacid.netmusic.client.network.ClientNetWorkHandler;
+import com.github.tartaricacid.netmusic.config.GeneralConfig;
+import com.github.tartaricacid.netmusic.config.MusicProviderType;
+import com.github.tartaricacid.netmusic.config.NetMusicConfigs;
 import com.github.tartaricacid.netmusic.inventory.CDBurnerMenu;
 import com.github.tartaricacid.netmusic.item.ItemMusicCD;
 import com.github.tartaricacid.netmusic.network.message.SetMusicIDMessage;
@@ -53,6 +56,7 @@ public class GuiCDBurnerScreen extends GuiContainer {
         this.buttonList.add(new GuiButton(0, this.guiLeft + 7, this.guiTop + 35, 55, 18,
                 StatCollector.translateToLocal("gui.netmusic.cd_burner.craft")));
         this.buttonList.add(new GuiButton(1, this.guiLeft + 66, this.guiTop + 34, 80, 20, getReadOnlyText()));
+        this.buttonList.add(new GuiButton(2, this.guiLeft + 7, this.guiTop + 56, 139, 18, getProviderText()));
     }
 
     @Override
@@ -73,11 +77,32 @@ public class GuiCDBurnerScreen extends GuiContainer {
         }
         if (button.id == 0) {
             submit();
+            return;
+        }
+        if (button.id == 2) {
+            toggleProvider();
+            button.displayString = getProviderText();
         }
     }
 
     private String getReadOnlyText() {
         return StatCollector.translateToLocal("gui.netmusic.cd_burner.read_only") + ": " + (this.readOnly ? "ON" : "OFF");
+    }
+
+    private String getProviderText() {
+        MusicProviderType provider = GeneralConfig.CD_PROVIDER;
+        String providerKey = "config.enum.netmusic.general.cd_provider." + provider.name();
+        String providerText = StatCollector.translateToLocal(providerKey);
+        if (providerText.equals(providerKey)) {
+            providerText = provider.getShortLabel();
+        }
+        return StatCollector.translateToLocal("gui.netmusic.cd_burner.provider") + ": " + providerText;
+    }
+
+    private void toggleProvider() {
+        MusicProviderType next = GeneralConfig.CD_PROVIDER.next();
+        NetMusicConfigs.CD_PROVIDER.setEnumValue(next);
+        NetMusicConfigs.getInstance().save();
     }
 
     private void submit() {
@@ -136,11 +161,14 @@ public class GuiCDBurnerScreen extends GuiContainer {
 
         this.idField.drawTextBox();
         if (this.idField.getText().trim().isEmpty() && !this.idField.isFocused()) {
-            this.fontRenderer.drawStringWithShadow(StatCollector.translateToLocal("gui.netmusic.cd_burner.id.tips"), this.guiLeft + 12, this.guiTop + 18, 0xA0A0A0);
+            String tipsKey = GeneralConfig.CD_PROVIDER == MusicProviderType.QQ
+                    ? "gui.netmusic.cd_burner.id.tips.qq"
+                    : "gui.netmusic.cd_burner.id.tips";
+            this.fontRenderer.drawStringWithShadow(StatCollector.translateToLocal(tipsKey), this.guiLeft + 12, this.guiTop + 18, 0xA0A0A0);
         }
 
         if (this.tipsKey != null && !this.tipsKey.isEmpty()) {
-            this.fontRenderer.drawSplitString(StatCollector.translateToLocal(this.tipsKey), this.guiLeft + 8, this.guiTop + 57, 135, 0xCF0000);
+            this.fontRenderer.drawSplitString(StatCollector.translateToLocal(this.tipsKey), this.guiLeft + 8, this.guiTop + 77, 138, 0xCF0000);
         }
     }
 

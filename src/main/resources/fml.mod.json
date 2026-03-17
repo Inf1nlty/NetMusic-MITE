@@ -15,7 +15,8 @@
     "郝南村",
     "琥珀酸",
     "帕金伊",
-    "SQwatermark"
+    "SQwatermark",
+    "Inf1nlty"
   ],
   "contact": {
     "homepage": "https://www.curseforge.com/minecraft/mc-mods/net-music",
@@ -30,6 +31,9 @@
     ],
     "client": [
       "com.github.tartaricacid.netmusic.client.NetMusicClient"
+    ],
+    "modmenu": [
+      "om.github.tartaricacid.netmusic.compat.modmenu.ModMenuApiImpl"
     ]
   },
   "mixins": [

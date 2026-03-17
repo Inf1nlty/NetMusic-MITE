@@ -6,6 +6,7 @@ import org.apache.commons.lang3.StringUtils;
 
 import java.io.File;
 import java.net.MalformedURLException;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Paths;
 import java.util.regex.Pattern;
@@ -13,6 +14,7 @@ import java.util.regex.Pattern;
 public final class ComputerInputParser {
     private static final int MAX_SONG_TIME_SECONDS = 60 * 60 * 12;
     private static final Pattern URL_HTTP_REG = Pattern.compile("(http|ftp|https)://[\\w\\-_]+(\\.[\\w\\-_]+)+([\\w\\-.,@?^=%&:/~+#]*[\\w\\-@?^=%&/~+#])?");
+    private static final Pattern URL_FILE_URI_REG = Pattern.compile("^file:/+.*$", Pattern.CASE_INSENSITIVE);
     private static final Pattern URL_FILE_REG = Pattern.compile("^[a-zA-Z]:\\\\(?:[^\\\\/:*?\"<>|\\r\\n]+\\\\)*[^\\\\/:*?\"<>|\\r\\n]*$");
     private static final Pattern TIME_REG = Pattern.compile("^\\d+$");
 
@@ -45,9 +47,23 @@ public final class ComputerInputParser {
             return ScreenSubmitResult.fail("gui.netmusic.computer.time.not_number");
         }
 
-        String urlText = rawUrl.trim();
+        String urlText = trimQuotes(rawUrl.trim());
         if (URL_HTTP_REG.matcher(urlText).matches()) {
             return createResult(urlText, rawName.trim(), time, readOnly);
+        }
+
+        if (URL_FILE_URI_REG.matcher(urlText).matches()) {
+            try {
+                URL url = new URL(urlText);
+                File file = Paths.get(url.toURI()).toFile();
+                if (!file.isFile()) {
+                    return ScreenSubmitResult.fail("gui.netmusic.computer.url.local_file_error");
+                }
+                return createResult(file.toURI().toURL().toString(), rawName.trim(), time, readOnly);
+            } catch (MalformedURLException | URISyntaxException e) {
+                NetMusic.LOGGER.error("Failed to parse local file url: {}", urlText, e);
+                return ScreenSubmitResult.fail("gui.netmusic.computer.url.error");
+            }
         }
 
         if (URL_FILE_REG.matcher(urlText).matches()) {
@@ -73,5 +89,15 @@ public final class ComputerInputParser {
         return sanitized != null
                 ? ScreenSubmitResult.success(sanitized)
                 : ScreenSubmitResult.fail("gui.netmusic.computer.url.error");
+    }
+
+    private static String trimQuotes(String value) {
+        if (value == null || value.length() < 2) {
+            return value;
+        }
+        if ((value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("'") && value.endsWith("'"))) {
+            return value.substring(1, value.length() - 1).trim();
+        }
+        return value;
     }
 }

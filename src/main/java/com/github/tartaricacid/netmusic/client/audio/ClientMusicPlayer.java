@@ -12,7 +12,9 @@ import javax.sound.sampled.AudioInputStream;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.DataLine;
 import javax.sound.sampled.SourceDataLine;
+import java.io.FileInputStream;
 import java.io.InputStream;
+import java.net.URL;
 import java.util.Random;
 
 public final class ClientMusicPlayer {
@@ -136,7 +138,11 @@ public final class ClientMusicPlayer {
 
     private static void stream(NetMusicSound sound, int session) {
         long timeoutAt = System.currentTimeMillis() + Math.max(sound.getTimeSecond(), 1) * 1000L + 3000L;
-        try (InputStream remote = new MusicBufferedInputStream(new ChunkedAudioStream(sound.getSongUrl(), NetWorker.getProxyFromConfig()));
+        InputStream source = createSourceStream(sound.getSongUrl());
+        if (source == null) {
+            return;
+        }
+        try (InputStream remote = new MusicBufferedInputStream(source);
              InputStream prepared = prepareAudioStream(remote);
              AudioInputStream compressed = AudioSystem.getAudioInputStream(prepared)) {
             AudioFormat base = compressed.getFormat();
@@ -174,6 +180,21 @@ public final class ClientMusicPlayer {
                     currentTick = 0;
                 }
             }
+        }
+    }
+
+    private static InputStream createSourceStream(URL songUrl) {
+        if (songUrl == null) {
+            return null;
+        }
+        try {
+            if ("file".equalsIgnoreCase(songUrl.getProtocol())) {
+                return new FileInputStream(new java.io.File(songUrl.toURI()));
+            }
+            return new ChunkedAudioStream(songUrl, NetWorker.getProxyFromConfig());
+        } catch (Exception e) {
+            NetMusic.LOGGER.error("Failed to open audio source: {}", songUrl, e);
+            return null;
         }
     }
 

@@ -1,6 +1,7 @@
 package com.github.tartaricacid.netmusic.block;
 
 import com.github.tartaricacid.netmusic.client.renderer.RenderTypes;
+import com.github.tartaricacid.netmusic.config.GeneralConfig;
 import com.github.tartaricacid.netmusic.item.ItemMusicCD;
 import com.github.tartaricacid.netmusic.tileentity.TileEntityMusicPlayer;
 import com.github.tartaricacid.netmusic.creativetab.NetMusicCreativeTab;
@@ -161,7 +162,7 @@ public class BlockMusicPlayer extends BlockDirectionalWithTileEntity {
         if (info == null) {
             return false;
         }
-        if (info.vip) {
+        if (info.vip && !GeneralConfig.hasVipCookieForUrl(info.songUrl)) {
             player.addChatMessage("message.netmusic.music_player.need_vip");
             return true;
         }

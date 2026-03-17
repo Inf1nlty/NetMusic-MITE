@@ -16,8 +16,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.commons.lang3.StringUtils;
 
 public class NetMusic implements ModInitializer {
-    public static final String MOD_ID = "netmusic";
 
+    public static final String MOD_ID = "netmusic";
     public static final Logger LOGGER = LogManager.getLogger(MOD_ID);
     public static WebApi NET_EASE_WEB_API;
 

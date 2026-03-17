@@ -29,10 +29,9 @@ public final class ClientMusicPlayer {
     private static volatile boolean gamePaused;
     private static int currentTick;
     private static final Random RANDOM = new Random();
-    private static final float MAX_HEAR_DISTANCE = 32.0F;
+    private static final float MAX_HEAR_DISTANCE = 96.0F;
 
-    private ClientMusicPlayer() {
-    }
+    private ClientMusicPlayer() {}
 
     public static void play(NetMusicSound sound) {
         if (sound == null) {

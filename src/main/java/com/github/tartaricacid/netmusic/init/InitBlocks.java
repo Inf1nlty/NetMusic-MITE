@@ -9,37 +9,23 @@ import net.minecraft.ItemBlock;
 import net.xiaoyu233.fml.reload.event.BlockRegistryEvent;
 
 public class InitBlocks {
+
     public static Block MUSIC_PLAYER;
     public static Block CD_BURNER;
     public static Block COMPUTER;
 
-    private static void ensureInitialized() {
-        if (MUSIC_PLAYER == null) {
-            MUSIC_PLAYER = new BlockMusicPlayer().setUnlocalizedName("music_player");
-        }
-        if (CD_BURNER == null) {
-            CD_BURNER = new BlockCDBurner().setUnlocalizedName("cd_burner");
-        }
-        if (COMPUTER == null) {
-            COMPUTER = new BlockComputer().setUnlocalizedName("computer");
-        }
-    }
-
     public static void registerBlocks(BlockRegistryEvent event) {
-        ensureInitialized();
 
-
+        MUSIC_PLAYER = new BlockMusicPlayer();
         Item.itemsList[MUSIC_PLAYER.blockID] = new ItemBlock(MUSIC_PLAYER);
-        event.registerBlock("Net Music Mod", "netmusic:music_player", "music_player", MUSIC_PLAYER);
+        event.registerBlock("NetMusic", "netmusic:music_player", "music_player", MUSIC_PLAYER);
 
+        CD_BURNER = new BlockCDBurner();
         Item.itemsList[CD_BURNER.blockID] = new ItemBlock(CD_BURNER);
-        event.registerBlock("Net Music Mod", "netmusic:cd_burner", "cd_burner", CD_BURNER);
+        event.registerBlock("NetMusic", "netmusic:cd_burner", "cd_burner", CD_BURNER);
 
+        COMPUTER = new BlockComputer();
         Item.itemsList[COMPUTER.blockID] = new ItemBlock(COMPUTER);
-        event.registerBlock("Net Music Mod", "netmusic:computer", "computer", COMPUTER);
-    }
-
-    public static void init() {
-        ensureInitialized();
+        event.registerBlock("NetMusic", "netmusic:computer", "computer", COMPUTER);
     }
 }

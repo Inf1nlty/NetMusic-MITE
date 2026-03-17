@@ -12,13 +12,14 @@ import org.lwjgl.opengl.GL11;
 import java.util.List;
 
 public final class ComputerRenderer {
-    private ComputerRenderer() {
-    }
+
+    private ComputerRenderer() {}
 
     public static boolean renderWorldBlock(RenderBlocks renderer, Block block, IBlockAccess blockAccess, int x, int y, int z) {
         if (renderer == null || block == null || blockAccess == null) {
             return false;
         }
+
         int metadata = blockAccess.getBlockMetadata(x, y, z);
         List<CuboidRenderHelper.Cuboid> cuboids = CuboidRenderHelper.rotateCuboidsY(ModelComputer.getCuboids(), getTurnsFromMetadata(metadata));
         Tessellator.instance.setBrightness(block.getMixedBrightnessForBlock(blockAccess, x, y, z));

@@ -11,13 +11,13 @@ import net.xiaoyu233.fml.reload.event.TileEntityRegisterEvent;
 public class NetMusicFMLEvents {
 
     @Subscribe
-    public void onBlockRegister(BlockRegistryEvent event) {
-        InitBlocks.registerBlocks(event);
+    public void onItemRegister(ItemRegistryEvent event) {
+        InitItems.registerItems(event);
     }
 
     @Subscribe
-    public void onItemRegister(ItemRegistryEvent event) {
-        InitItems.registerItems(event);
+    public void onBlockRegister(BlockRegistryEvent event) {
+        InitBlocks.registerBlocks(event);
     }
 
     @Subscribe

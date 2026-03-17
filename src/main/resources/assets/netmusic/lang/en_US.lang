@@ -3,8 +3,8 @@
 item.music_cd.name=Music CD
 
 tile.netmusic:music_player.name=Music Player
-tile.cd_burner.name=CD Burner
-tile.computer.name=Computer
+tile.netmusic:cd_burner.name=CD Burner
+tile.netmusic:computer.name=Computer
 
 tooltips.netmusic.cd.trans_name=Name
 tooltips.netmusic.cd.artists=Artists

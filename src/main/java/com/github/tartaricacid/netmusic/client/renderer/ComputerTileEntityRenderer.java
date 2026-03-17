@@ -1,16 +1,13 @@
 package com.github.tartaricacid.netmusic.client.renderer;
 
-import com.github.tartaricacid.netmusic.tileentity.TileEntityComputer;
-import net.minecraft.Minecraft;
-import net.minecraft.Tessellator;
-import net.minecraft.TileEntity;
-import net.minecraft.TileEntitySpecialRenderer;
+import net.minecraft.*;
 import org.lwjgl.opengl.GL11;
 
 public class ComputerTileEntityRenderer extends TileEntitySpecialRenderer {
+
     private static final BlockbenchModel MODEL = BlockbenchModel.load(
             "assets/netmusic/models/block/computer.json",
-            new net.minecraft.ResourceLocation("netmusic:textures/block/computer.png"),
+            new ResourceLocation("netmusic:textures/block/computer.png"),
             64,
             64
     );

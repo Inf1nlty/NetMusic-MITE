@@ -5,13 +5,13 @@ import net.minecraft.Item;
 import net.xiaoyu233.fml.reload.event.ItemRegistryEvent;
 
 public class InitItems {
+
     public static Item MUSIC_CD;
     public static Item MUSIC_PLAYER;
     public static Item CD_BURNER;
     public static Item COMPUTER;
 
     public static void registerItems(ItemRegistryEvent event) {
-        InitBlocks.init();
 
         MUSIC_CD = new ItemMusicCD();
         event.register("Net Music Mod", "netmusic:music_cd", "music_cd", MUSIC_CD);
@@ -25,8 +25,5 @@ public class InitItems {
         event.registerItemBlock("Net Music Mod", "netmusic:computer", "computer", InitBlocks.COMPUTER);
         COMPUTER = Item.itemsList[InitBlocks.COMPUTER.blockID];
 
-    }
-
-    public static void init() {
     }
 }

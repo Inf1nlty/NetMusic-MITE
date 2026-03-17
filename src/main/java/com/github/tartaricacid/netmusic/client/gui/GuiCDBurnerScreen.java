@@ -21,16 +21,31 @@ import java.awt.Desktop;
 import java.awt.Toolkit;
 import java.awt.datatransfer.DataFlavor;
 import java.net.URI;
+import java.util.LinkedHashMap;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
 public class GuiCDBurnerScreen extends GuiContainer {
     private static final ResourceLocation BG = new ResourceLocation("netmusic", "textures/gui/cd_burner.png");
     private static final String NETEASE_LOGIN_URL = "https://music.163.com/#/login";
     private static final String QQ_LOGIN_URL = "https://y.qq.com/";
+    private static final Set<String> NETEASE_KEYS = Set.of(
+            "MUSIC_U", "MUSIC_A", "__csrf", "NMTID", "MUSIC_R_T", "MUSIC_SNS"
+    );
+    private static final Set<String> QQ_KEYS = Set.of(
+            "uin", "p_uin", "qm_keyst", "qqmusic_key", "p_skey", "pt4_token", "wxuin"
+    );
+    private static final Set<String> COOKIE_ATTRIBUTES = Set.of(
+            "path", "domain", "expires", "max-age", "httponly", "secure", "samesite", "priority"
+    );
     private final CDBurnerMenu menu;
 
     private GuiTextField idField;
     private boolean readOnly;
     private String tipsKey = "";
+    private boolean waitingCookieImport;
+    private int clipboardPollTicks;
 
     public GuiCDBurnerScreen(CDBurnerMenu menu) {
         super(menu);
@@ -114,7 +129,7 @@ public class GuiCDBurnerScreen extends GuiContainer {
     }
 
     private void handleCookieButton() {
-        String importedCookie = tryReadCookieFromClipboard();
+        String importedCookie = tryReadCookieFromClipboard(GeneralConfig.CD_PROVIDER);
         if (!importedCookie.isEmpty()) {
             if (GeneralConfig.CD_PROVIDER == MusicProviderType.QQ) {
                 NetMusicConfigs.QQ_VIP_COOKIE.setValueFromString(importedCookie);
@@ -122,11 +137,14 @@ public class GuiCDBurnerScreen extends GuiContainer {
                 NetMusicConfigs.NETEASE_VIP_COOKIE.setValueFromString(importedCookie);
             }
             NetMusicConfigs.getInstance().save();
+            this.waitingCookieImport = false;
             this.tipsKey = "gui.netmusic.cd_burner.cookie_imported";
             return;
         }
 
         if (openProviderLoginPage()) {
+            this.waitingCookieImport = true;
+            this.clipboardPollTicks = 0;
             this.tipsKey = "gui.netmusic.cd_burner.cookie_opened";
         } else {
             this.tipsKey = "gui.netmusic.cd_burner.cookie_open_failed";
@@ -151,7 +169,7 @@ public class GuiCDBurnerScreen extends GuiContainer {
         }
     }
 
-    private static String tryReadCookieFromClipboard() {
+    private static String tryReadCookieFromClipboard(MusicProviderType provider) {
         try {
             Object value = Toolkit.getDefaultToolkit()
                     .getSystemClipboard()
@@ -159,13 +177,13 @@ public class GuiCDBurnerScreen extends GuiContainer {
             if (!(value instanceof String text)) {
                 return "";
             }
-            return normalizeCookie(text);
+            return extractEssentialCookie(text, provider);
         } catch (Exception e) {
             return "";
         }
     }
 
-    private static String normalizeCookie(String raw) {
+    private static String extractEssentialCookie(String raw, MusicProviderType provider) {
         if (raw == null) {
             return "";
         }
@@ -180,7 +198,91 @@ public class GuiCDBurnerScreen extends GuiContainer {
         if ((text.startsWith("\"") && text.endsWith("\"")) || (text.startsWith("'") && text.endsWith("'"))) {
             text = text.substring(1, text.length() - 1).trim();
         }
-        return text.contains("=") ? text : "";
+        if (!text.contains("=")) {
+            return "";
+        }
+
+        Map<String, String> parsed = parseCookiePairs(text);
+        if (parsed.isEmpty()) {
+            return "";
+        }
+        return provider == MusicProviderType.QQ
+                ? buildQqCookie(parsed)
+                : buildNeteaseCookie(parsed);
+    }
+
+    private static Map<String, String> parseCookiePairs(String raw) {
+        Map<String, String> pairs = new LinkedHashMap<String, String>();
+        String[] segments = raw.split("[;\\n]");
+        for (String segment : segments) {
+            String item = segment == null ? "" : segment.trim();
+            if (item.isEmpty()) {
+                continue;
+            }
+            int eq = item.indexOf('=');
+            if (eq <= 0 || eq >= item.length() - 1) {
+                continue;
+            }
+            String key = item.substring(0, eq).trim();
+            String value = item.substring(eq + 1).trim();
+            if (key.isEmpty() || value.isEmpty()) {
+                continue;
+            }
+            String lower = key.toLowerCase(Locale.ROOT);
+            if (COOKIE_ATTRIBUTES.contains(lower)) {
+                continue;
+            }
+            pairs.put(key, value);
+        }
+        return pairs;
+    }
+
+    private static String buildNeteaseCookie(Map<String, String> pairs) {
+        StringBuilder cookie = new StringBuilder();
+        for (String key : NETEASE_KEYS) {
+            appendIfPresent(cookie, pairs, key);
+        }
+        // Minimal usable keys: MUSIC_U or MUSIC_A.
+        if (cookie.length() == 0 || (!containsKey(pairs, "MUSIC_U") && !containsKey(pairs, "MUSIC_A"))) {
+            return "";
+        }
+        return cookie.toString();
+    }
+
+    private static String buildQqCookie(Map<String, String> pairs) {
+        StringBuilder cookie = new StringBuilder();
+        for (String key : QQ_KEYS) {
+            appendIfPresent(cookie, pairs, key);
+        }
+        // Minimal usable keys: (uin or p_uin) + (qm_keyst or qqmusic_key).
+        boolean hasUin = containsKey(pairs, "uin") || containsKey(pairs, "p_uin");
+        boolean hasKey = containsKey(pairs, "qm_keyst") || containsKey(pairs, "qqmusic_key");
+        if (cookie.length() == 0 || !hasUin || !hasKey) {
+            return "";
+        }
+        return cookie.toString();
+    }
+
+    private static void appendIfPresent(StringBuilder cookie, Map<String, String> pairs, String key) {
+        for (Map.Entry<String, String> entry : pairs.entrySet()) {
+            if (!entry.getKey().equalsIgnoreCase(key)) {
+                continue;
+            }
+            if (cookie.length() > 0) {
+                cookie.append("; ");
+            }
+            cookie.append(entry.getKey()).append("=").append(entry.getValue());
+            return;
+        }
+    }
+
+    private static boolean containsKey(Map<String, String> pairs, String key) {
+        for (String k : pairs.keySet()) {
+            if (k.equalsIgnoreCase(key)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void submit() {
@@ -225,6 +327,23 @@ public class GuiCDBurnerScreen extends GuiContainer {
     public void updateScreen() {
         super.updateScreen();
         this.idField.updateCursorCounter();
+
+        if (this.waitingCookieImport) {
+            this.clipboardPollTicks++;
+            if (this.clipboardPollTicks % 20 == 0) {
+                String importedCookie = tryReadCookieFromClipboard(GeneralConfig.CD_PROVIDER);
+                if (!importedCookie.isEmpty()) {
+                    if (GeneralConfig.CD_PROVIDER == MusicProviderType.QQ) {
+                        NetMusicConfigs.QQ_VIP_COOKIE.setValueFromString(importedCookie);
+                    } else {
+                        NetMusicConfigs.NETEASE_VIP_COOKIE.setValueFromString(importedCookie);
+                    }
+                    NetMusicConfigs.getInstance().save();
+                    this.waitingCookieImport = false;
+                    this.tipsKey = "gui.netmusic.cd_burner.cookie_imported";
+                }
+            }
+        }
     }
 
     @Override

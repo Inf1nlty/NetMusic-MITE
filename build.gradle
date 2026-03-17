@@ -47,7 +47,7 @@ dependencies {
 def fmlResolvedFile = configurations.fml.files.iterator().next()
 
 loom {
-    accessWidenerPath = file("src/main/resources/netmusic.accessWidener")
+    accessWidenerPath = file("src/main/resources/netmusic.accesswidener")
     mergedMinecraftJar()
 
     mods {

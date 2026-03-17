@@ -3,6 +3,7 @@ package com.github.tartaricacid.netmusic.client.audio;
 import com.github.tartaricacid.netmusic.NetMusic;
 import com.github.tartaricacid.netmusic.api.NetWorker;
 import com.github.tartaricacid.netmusic.api.lyric.LyricRecord;
+import com.github.tartaricacid.netmusic.config.GeneralConfig;
 import com.github.tartaricacid.netmusic.tileentity.TileEntityMusicPlayer;
 import net.minecraft.Minecraft;
 import net.minecraft.TileEntity;
@@ -24,8 +25,10 @@ public final class ClientMusicPlayer {
     private static Thread playThread;
     private static volatile boolean stopRequested;
     private static volatile int playSession;
+    private static volatile float dynamicVolume = 1.0F;
     private static int currentTick;
     private static final Random RANDOM = new Random();
+    private static final float MAX_HEAR_DISTANCE = 32.0F;
 
     private ClientMusicPlayer() {
     }
@@ -38,6 +41,7 @@ public final class ClientMusicPlayer {
             stopInternal();
             currentSound = sound;
             currentTick = 0;
+            dynamicVolume = (float) GeneralConfig.MUSIC_PLAYER_VOLUME;
             stopRequested = false;
             int session = ++playSession;
             playThread = new Thread(() -> stream(sound, session), "NetMusic-Player");
@@ -60,6 +64,7 @@ public final class ClientMusicPlayer {
         }
         currentSound = null;
         currentTick = 0;
+        dynamicVolume = 0.0F;
     }
 
     /**
@@ -68,7 +73,12 @@ public final class ClientMusicPlayer {
      */
     public static void clientTick() {
         Minecraft mc = Minecraft.getMinecraft();
-        if (mc == null || mc.theWorld == null || mc.thePlayer == null) {
+        if (mc == null) {
+            stop();
+            return;
+        }
+        if (mc.theWorld == null || mc.thePlayer == null) {
+            stop();
             return;
         }
 
@@ -80,14 +90,23 @@ public final class ClientMusicPlayer {
             return;
         }
 
+        if (mc.isGamePaused) {
+            stopAndClearTile(mc, sound);
+            return;
+        }
+
         // Stop if the player moved too far away (vanilla sound engine would attenuate/stop naturally).
         double dx = mc.thePlayer.posX - (sound.getX() + 0.5D);
         double dy = mc.thePlayer.posY - (sound.getY() + 0.5D);
         double dz = mc.thePlayer.posZ - (sound.getZ() + 0.5D);
-        if (dx * dx + dy * dy + dz * dz > 96.0D * 96.0D) {
+        double distSq = dx * dx + dy * dy + dz * dz;
+        if (distSq > (double) (MAX_HEAR_DISTANCE * MAX_HEAR_DISTANCE)) {
             stopAndClearTile(mc, sound);
             return;
         }
+        float distance = (float) Math.sqrt(distSq);
+        float attenuation = Math.max(0.0F, 1.0F - distance / MAX_HEAR_DISTANCE);
+        dynamicVolume = clampVolume((float) GeneralConfig.MUSIC_PLAYER_VOLUME * attenuation);
 
         currentTick++;
 
@@ -162,6 +181,7 @@ public final class ClientMusicPlayer {
                         while (session == playSession && !stopRequested && !Thread.currentThread().isInterrupted()
                                 && System.currentTimeMillis() < timeoutAt
                                 && (read = finalPcm.read(buffer, 0, buffer.length)) != -1) {
+                            applyPcmVolume(buffer, read, dynamicVolume);
                             line.write(buffer, 0, read);
                         }
                         line.drain();
@@ -214,6 +234,39 @@ public final class ClientMusicPlayer {
             return new AudioFormat(AudioFormat.Encoding.PCM_SIGNED, base.getSampleRate(), 16, 1, 2, base.getSampleRate(), false);
         }
         return new AudioFormat(AudioFormat.Encoding.PCM_SIGNED, base.getSampleRate(), 16, 2, 4, base.getSampleRate(), false);
+    }
+
+    private static void applyPcmVolume(byte[] buffer, int length, float volume) {
+        if (buffer == null || length <= 1) {
+            return;
+        }
+        float clampedVolume = clampVolume(volume);
+        if (Math.abs(clampedVolume - 1.0F) < 1.0e-4F) {
+            return;
+        }
+        for (int i = 0; i + 1 < length; i += 2) {
+            int lo = buffer[i] & 0xFF;
+            int hi = buffer[i + 1];
+            short sample = (short) ((hi << 8) | lo);
+            int scaled = Math.round(sample * clampedVolume);
+            if (scaled > Short.MAX_VALUE) {
+                scaled = Short.MAX_VALUE;
+            } else if (scaled < Short.MIN_VALUE) {
+                scaled = Short.MIN_VALUE;
+            }
+            buffer[i] = (byte) (scaled & 0xFF);
+            buffer[i + 1] = (byte) ((scaled >> 8) & 0xFF);
+        }
+    }
+
+    private static float clampVolume(float volume) {
+        if (volume < 0.0F) {
+            return 0.0F;
+        }
+        if (volume > 2.0F) {
+            return 2.0F;
+        }
+        return volume;
     }
 
     private static void skipID3(InputStream inputStream) throws java.io.IOException {

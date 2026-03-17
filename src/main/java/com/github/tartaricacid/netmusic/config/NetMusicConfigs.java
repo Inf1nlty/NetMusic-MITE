@@ -4,6 +4,7 @@ import fi.dy.masa.malilib.config.SimpleConfigs;
 import fi.dy.masa.malilib.config.options.ConfigBase;
 import fi.dy.masa.malilib.config.options.ConfigBoolean;
 import fi.dy.masa.malilib.config.options.ConfigColor;
+import fi.dy.masa.malilib.config.options.ConfigDouble;
 import fi.dy.masa.malilib.config.options.ConfigEnum;
 import fi.dy.masa.malilib.config.options.ConfigHotkey;
 import fi.dy.masa.malilib.config.options.ConfigString;
@@ -13,17 +14,46 @@ import java.util.List;
 
 public class NetMusicConfigs extends SimpleConfigs {
     private static final NetMusicConfigs INSTANCE;
-    private static final String KEY_PREFIX = "netmusic.general.";
 
-    public static final ConfigBoolean ENABLE_STEREO = boolOption("enable_stereo", true);
-    public static final ConfigString PROXY_TYPE = stringOption("proxy_type", "DIRECT");
-    public static final ConfigString PROXY_ADDRESS = stringOption("proxy_address", "");
-    public static final ConfigEnum<MusicProviderType> CD_PROVIDER = enumOption("cd_provider", MusicProviderType.NETEASE);
-    public static final ConfigString NETEASE_VIP_COOKIE = stringOption("netease_vip_cookie", "");
-    public static final ConfigString QQ_VIP_COOKIE = stringOption("qq_vip_cookie", "");
-    public static final ConfigBoolean ENABLE_PLAYER_LYRICS = boolOption("enable_player_lyrics", true);
-    public static final ConfigColor ORIGINAL_PLAYER_LYRICS_COLOR = colorOption("original_player_lyrics_color", "#FFAAAAAA");
-    public static final ConfigColor TRANSLATED_PLAYER_LYRICS_COLOR = colorOption("translated_player_lyrics_color", "#FFFFFFFF");
+    public static final ConfigBoolean ENABLE_STEREO = new ConfigBoolean(
+            "netmusic.general.enable_stereo", true, "netmusic.general.enable_stereo"
+    );
+
+    public static final ConfigDouble MUSIC_PLAYER_VOLUME = new ConfigDouble(
+            "netmusic.general.music_player_volume", 0.5D, 0.0D, 2.0D, "netmusic.general.music_player_volume"
+    );
+
+    public static final ConfigString PROXY_TYPE = new ConfigString(
+            "netmusic.general.proxy_type", "DIRECT", "netmusic.general.proxy_type"
+    );
+
+    public static final ConfigString PROXY_ADDRESS = new ConfigString(
+            "netmusic.general.proxy_address", "", "netmusic.general.proxy_address"
+    );
+
+    public static final ConfigEnum<MusicProviderType> CD_PROVIDER = new ConfigEnum<>(
+            "netmusic.general.cd_provider", MusicProviderType.NETEASE, "netmusic.general.cd_provider"
+    );
+
+    public static final ConfigString NETEASE_VIP_COOKIE = new ConfigString(
+            "netmusic.general.netease_vip_cookie", "", "netmusic.general.netease_vip_cookie"
+    );
+
+    public static final ConfigString QQ_VIP_COOKIE = new ConfigString(
+            "netmusic.general.qq_vip_cookie", "", "netmusic.general.qq_vip_cookie"
+    );
+
+    public static final ConfigBoolean ENABLE_PLAYER_LYRICS = new ConfigBoolean(
+            "netmusic.general.enable_player_lyrics", true, "netmusic.general.enable_player_lyrics"
+    );
+
+    public static final ConfigColor ORIGINAL_PLAYER_LYRICS_COLOR = new ConfigColor(
+            "netmusic.general.original_player_lyrics_color", "#FFAAAAAA", "netmusic.general.original_player_lyrics_color"
+    );
+
+    public static final ConfigColor TRANSLATED_PLAYER_LYRICS_COLOR = new ConfigColor(
+            "netmusic.general.translated_player_lyrics_color", "#FFFFFFFF", "netmusic.general.translated_player_lyrics_color"
+    );
 
     public static final List<ConfigBase<?>> VALUES;
     public static final List<ConfigHotkey> HOTKEYS = List.of();
@@ -31,6 +61,7 @@ public class NetMusicConfigs extends SimpleConfigs {
     static {
         VALUES = List.of(
                 ENABLE_STEREO,
+                MUSIC_PLAYER_VOLUME,
                 PROXY_TYPE,
                 PROXY_ADDRESS,
                 CD_PROVIDER,
@@ -54,6 +85,7 @@ public class NetMusicConfigs extends SimpleConfigs {
 
     public void syncToRuntime() {
         GeneralConfig.ENABLE_STEREO = ENABLE_STEREO.getBooleanValue();
+        GeneralConfig.MUSIC_PLAYER_VOLUME = clampVolume(MUSIC_PLAYER_VOLUME.getDoubleValue());
         GeneralConfig.ENABLE_PLAYER_LYRICS = ENABLE_PLAYER_LYRICS.getBooleanValue();
         GeneralConfig.PROXY_TYPE = parseProxyType(PROXY_TYPE.getStringValue());
         GeneralConfig.PROXY_ADDRESS = trim(PROXY_ADDRESS.getStringValue());
@@ -94,27 +126,13 @@ public class NetMusicConfigs extends SimpleConfigs {
         return value == null ? "" : value.trim();
     }
 
-    private static String optionKey(String name) {
-        return KEY_PREFIX + name;
-    }
-
-    private static ConfigBoolean boolOption(String name, boolean defaultValue) {
-        String key = optionKey(name);
-        return new ConfigBoolean(key, defaultValue, key);
-    }
-
-    private static ConfigString stringOption(String name, String defaultValue) {
-        String key = optionKey(name);
-        return new ConfigString(key, defaultValue, key);
-    }
-
-    private static ConfigColor colorOption(String name, String defaultValue) {
-        String key = optionKey(name);
-        return new ConfigColor(key, defaultValue, key);
-    }
-
-    private static <E extends Enum<E>> ConfigEnum<E> enumOption(String name, E defaultValue) {
-        String key = optionKey(name);
-        return new ConfigEnum<>(key, defaultValue, key);
+    private static double clampVolume(double value) {
+        if (value < 0.0D) {
+            return 0.0D;
+        }
+        if (value > 2.0D) {
+            return 2.0D;
+        }
+        return value;
     }
 }

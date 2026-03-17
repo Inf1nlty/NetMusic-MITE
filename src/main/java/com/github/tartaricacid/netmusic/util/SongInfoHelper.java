@@ -64,4 +64,3 @@ public final class SongInfoHelper {
         return isValid(copy) ? copy : null;
     }
 }
-

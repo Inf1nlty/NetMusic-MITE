@@ -1,8 +1,8 @@
-﻿itemGroup.Net Music=Net Music
+﻿itemGroup.NetMusic=Net Music
 
 item.music_cd.name=Music CD
 
-tile.music_player.name=Music Player
+tile.netmusic:music_player.name=Music Player
 tile.cd_burner.name=CD Burner
 tile.computer.name=Computer
 
@@ -89,25 +89,27 @@ gui.netmusic.computer.time.empty=The song time cannot be empty
 gui.netmusic.computer.time.not_number=The song time format is incorrect, please enter the song time as a number!
 config.name.netmusic.general=General Settings
 config.name.netmusic.general.enable_stereo=Enable Stereo
-config.name.netmusic.general.enable_stereo.tooltip=Whether stereo playback is enabled
+config.comment.netmusic.general.enable_stereo=Whether stereo playback is enabled
+config.name.netmusic.general.music_player_volume=Record Player Volume
+config.comment.netmusic.general.music_player_volume=Record Player Volume
 config.name.netmusic.general.proxy_type=Proxy Type
-config.name.netmusic.general.proxy_type.tooltip=Proxy Type, http and socks are supported
+config.comment.netmusic.general.proxy_type=Proxy Type, http and socks are supported
 config.name.netmusic.general.proxy_address=Proxy Address
-config.name.netmusic.general.proxy_address.tooltip=Proxy Address, such as 127.0.0.1:1080, empty is no proxy
+config.comment.netmusic.general.proxy_address=Proxy Address, such as 127.0.0.1:1080, empty is no proxy
 config.name.netmusic.general.cd_provider=CD Burner Provider
-config.name.netmusic.general.cd_provider.tooltip=Default provider used by CD Burner: NETEASE or QQ
+config.comment.netmusic.general.cd_provider=Default provider used by CD Burner: NETEASE or QQ
 config.enum.netmusic.general.cd_provider.NETEASE=NetEase
 config.enum.netmusic.general.cd_provider.QQ=QQ Music
 config.name.netmusic.general.netease_vip_cookie=NetEase VIP Cookie
-config.name.netmusic.general.netease_vip_cookie.tooltip=Cookie used to resolve/play NetEase VIP songs
+config.comment.netmusic.general.netease_vip_cookie=Cookie used to resolve/play NetEase VIP songs
 config.name.netmusic.general.qq_vip_cookie=QQ Music VIP Cookie
-config.name.netmusic.general.qq_vip_cookie.tooltip=VIP cookie for QQ Music resolving; leave empty for non-VIP/trial links only
+config.comment.netmusic.general.qq_vip_cookie=VIP cookie for QQ Music resolving; leave empty for non-VIP/trial links only
 config.name.netmusic.general.enable_player_lyrics=Enable Player Lyrics
-config.name.netmusic.general.enable_player_lyrics.tooltip=Whether to enable lyrics display in the music player
+config.comment.netmusic.general.enable_player_lyrics=Whether to enable lyrics display in the music player
 config.name.netmusic.general.original_player_lyrics_color=Original Player Lyrics Color
-config.name.netmusic.general.original_player_lyrics_color.tooltip=The color of the original lyrics in the music player, in #ARGB format
+config.comment.netmusic.general.original_player_lyrics_color=The color of the original lyrics in the music player, in #ARGB format
 config.name.netmusic.general.translated_player_lyrics_color=Translated Player Lyrics Color
-config.name.netmusic.general.translated_player_lyrics_color.tooltip=The color of the translated lyrics in the music player, in #ARGB format
+config.comment.netmusic.general.translated_player_lyrics_color=The color of the translated lyrics in the music player, in #ARGB format
 jei.netmusic.altar_craft.item_craft.result=Craft Item
 item.netmusic.music_cd.tip=A music CD used for writing musics, if it's read only, a music cannot be overwritten.
 block.netmusic.music_player.tip=Place a Music CD on a music player and enjoy your favorite music.

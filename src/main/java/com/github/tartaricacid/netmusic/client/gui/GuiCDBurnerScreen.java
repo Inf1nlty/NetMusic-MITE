@@ -1,6 +1,7 @@
 package com.github.tartaricacid.netmusic.client.gui;
 
 import com.github.tartaricacid.netmusic.client.network.ClientNetWorkHandler;
+import com.github.tartaricacid.netmusic.client.config.ClientVipCookieManager;
 import com.github.tartaricacid.netmusic.config.GeneralConfig;
 import com.github.tartaricacid.netmusic.config.MusicProviderType;
 import com.github.tartaricacid.netmusic.config.NetMusicConfigs;
@@ -133,12 +134,7 @@ public class GuiCDBurnerScreen extends GuiContainer {
     private void handleCookieButton() {
         String importedCookie = tryReadCookieFromClipboard(GeneralConfig.CD_PROVIDER);
         if (!importedCookie.isEmpty()) {
-            if (GeneralConfig.CD_PROVIDER == MusicProviderType.QQ) {
-                NetMusicConfigs.QQ_VIP_COOKIE.setValueFromString(importedCookie);
-            } else {
-                NetMusicConfigs.NETEASE_VIP_COOKIE.setValueFromString(importedCookie);
-            }
-            NetMusicConfigs.getInstance().save();
+            ClientVipCookieManager.updateCookieForCurrentPlayer(GeneralConfig.CD_PROVIDER, importedCookie);
             this.waitingCookieImport = false;
             this.tipsKey = "gui.netmusic.cd_burner.cookie_imported";
             return;
@@ -350,12 +346,7 @@ public class GuiCDBurnerScreen extends GuiContainer {
             if (this.clipboardPollTicks % 20 == 0) {
                 String importedCookie = tryReadCookieFromClipboard(GeneralConfig.CD_PROVIDER);
                 if (!importedCookie.isEmpty()) {
-                    if (GeneralConfig.CD_PROVIDER == MusicProviderType.QQ) {
-                        NetMusicConfigs.QQ_VIP_COOKIE.setValueFromString(importedCookie);
-                    } else {
-                        NetMusicConfigs.NETEASE_VIP_COOKIE.setValueFromString(importedCookie);
-                    }
-                    NetMusicConfigs.getInstance().save();
+                    ClientVipCookieManager.updateCookieForCurrentPlayer(GeneralConfig.CD_PROVIDER, importedCookie);
                     this.waitingCookieImport = false;
                     this.tipsKey = "gui.netmusic.cd_burner.cookie_imported";
                 }

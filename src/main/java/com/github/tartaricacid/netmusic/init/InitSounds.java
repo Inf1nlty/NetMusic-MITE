@@ -6,7 +6,7 @@ import java.util.Set;
 
 public class InitSounds {
     public static final String NET_MUSIC = "netmusic.net_music";
-    private static final Set<String> REGISTERED = new HashSet<String>();
+    private static final Set<String> REGISTERED = new HashSet<>();
 
     public static void init() {
         REGISTERED.add(NET_MUSIC);

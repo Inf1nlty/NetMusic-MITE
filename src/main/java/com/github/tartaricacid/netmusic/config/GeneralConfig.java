@@ -32,6 +32,19 @@ public class GeneralConfig {
         configs.syncToRuntime();
     }
 
+    public static void setVipCookies(String neteaseCookie, String qqCookie) {
+        NETEASE_VIP_COOKIE = sanitize(neteaseCookie);
+        QQ_VIP_COOKIE = sanitize(qqCookie);
+    }
+
+    public static void setVipCookie(MusicProviderType provider, String cookie) {
+        if (provider == MusicProviderType.QQ) {
+            QQ_VIP_COOKIE = sanitize(cookie);
+            return;
+        }
+        NETEASE_VIP_COOKIE = sanitize(cookie);
+    }
+
     public static boolean hasNeteaseVipCookie() {
         return StringUtils.isNotBlank(NETEASE_VIP_COOKIE);
     }
@@ -41,16 +54,10 @@ public class GeneralConfig {
     }
 
     public static boolean hasVipCookieForUrl(String songUrl) {
-        if (StringUtils.isBlank(songUrl)) {
-            return hasNeteaseVipCookie() || hasQqVipCookie();
-        }
-        String url = songUrl.toLowerCase();
-        if (url.contains("qqmusic.qq.com") || url.contains("y.qq.com")) {
-            return hasQqVipCookie();
-        }
-        if (url.contains("music.163.com")) {
-            return hasNeteaseVipCookie();
-        }
-        return hasNeteaseVipCookie() || hasQqVipCookie();
+        return PlayerVipCookieStore.hasVipCookieForUrl(songUrl, NETEASE_VIP_COOKIE, QQ_VIP_COOKIE);
+    }
+
+    private static String sanitize(String cookie) {
+        return cookie == null ? StringUtils.EMPTY : cookie.trim();
     }
 }

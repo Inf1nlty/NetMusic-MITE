@@ -1,12 +1,15 @@
 package com.github.tartaricacid.netmusic.network.message;
 
 import com.github.tartaricacid.netmusic.NetMusic;
+import com.github.tartaricacid.netmusic.client.audio.ClientMusicPlayer;
+import com.github.tartaricacid.netmusic.item.ItemMusicCD;
 import com.github.tartaricacid.netmusic.tileentity.TileEntityMusicPlayer;
 import moddedmite.rustedironcore.network.PacketByteBuf;
 import net.minecraft.EntityPlayer;
 import net.minecraft.ItemStack;
 import net.minecraft.ResourceLocation;
 import net.minecraft.TileEntity;
+import org.apache.commons.lang3.StringUtils;
 
 public class MusicPlayerStateMessage implements Message {
     public static final ResourceLocation ID = new ResourceLocation(NetMusic.MOD_ID, "music_player_state");
@@ -52,11 +55,26 @@ public class MusicPlayerStateMessage implements Message {
         TileEntity tileEntity = entityPlayer.worldObj.getBlockTileEntity(this.x, this.y, this.z);
         if (tileEntity instanceof TileEntityMusicPlayer musicPlayer) {
             musicPlayer.applyClientSync(this.play, this.currentTime, this.signal, this.stack == null ? null : this.stack.copy());
+            recoverPlaybackIfNeeded(entityPlayer);
         }
     }
 
     @Override
     public ResourceLocation getChannel() {
         return ID;
+    }
+
+    private void recoverPlaybackIfNeeded(EntityPlayer entityPlayer) {
+        if (!this.play || this.stack == null) {
+            return;
+        }
+        if (ClientMusicPlayer.isPlayingAt(this.x, this.y, this.z) || ClientMusicPlayer.isPlaying()) {
+            return;
+        }
+        ItemMusicCD.SongInfo info = ItemMusicCD.getSongInfo(this.stack);
+        if (info == null || info.songTime <= 0 || StringUtils.isBlank(info.songUrl)) {
+            return;
+        }
+        new MusicToClientMessage(this.x, this.y, this.z, info.songUrl, info.songTime, info.songName).apply(entityPlayer);
     }
 }

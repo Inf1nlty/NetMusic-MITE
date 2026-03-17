@@ -1,6 +1,7 @@
 package com.github.tartaricacid.netmusic.mixin;
 
 import com.github.tartaricacid.netmusic.client.audio.ClientMusicPlayer;
+import com.github.tartaricacid.netmusic.client.config.ClientVipCookieManager;
 import net.minecraft.Minecraft;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -12,5 +13,6 @@ public abstract class MinecraftMixin {
     @Inject(method = "runTick", at = @At("TAIL"))
     private void netmusic$clientTick(CallbackInfo ci) {
         ClientMusicPlayer.clientTick();
+        ClientVipCookieManager.clientTick();
     }
 }

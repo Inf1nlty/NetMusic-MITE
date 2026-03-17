@@ -32,6 +32,9 @@
     "client": [
       "com.github.tartaricacid.netmusic.client.NetMusicClient"
     ],
+    "emi": [
+      "com.github.tartaricacid.netmusic.compat.EmiPluginImpl"
+    ],
     "modmenu": [
       "com.github.tartaricacid.netmusic.compat.modmenu.ModMenuApiImpl"
     ]

@@ -41,14 +41,6 @@ public class NetMusicConfigs extends SimpleConfigs {
             "netmusic.general.cd_provider", MusicProviderType.NETEASE, "netmusic.general.cd_provider"
     );
 
-    public static final ConfigString NETEASE_VIP_COOKIE = new ConfigString(
-            "netmusic.general.netease_vip_cookie", "", "netmusic.general.netease_vip_cookie"
-    );
-
-    public static final ConfigString QQ_VIP_COOKIE = new ConfigString(
-            "netmusic.general.qq_vip_cookie", "", "netmusic.general.qq_vip_cookie"
-    );
-
     public static final ConfigBoolean ENABLE_PLAYER_LYRICS = new ConfigBoolean(
             "netmusic.general.enable_player_lyrics", true, "netmusic.general.enable_player_lyrics"
     );
@@ -72,8 +64,6 @@ public class NetMusicConfigs extends SimpleConfigs {
                 PROXY_TYPE,
                 PROXY_ADDRESS,
                 CD_PROVIDER,
-                NETEASE_VIP_COOKIE,
-                QQ_VIP_COOKIE,
                 ENABLE_PLAYER_LYRICS,
                 ORIGINAL_PLAYER_LYRICS_COLOR,
                 TRANSLATED_PLAYER_LYRICS_COLOR
@@ -98,8 +88,6 @@ public class NetMusicConfigs extends SimpleConfigs {
         GeneralConfig.PROXY_TYPE = parseProxyType(PROXY_TYPE.getStringValue());
         GeneralConfig.PROXY_ADDRESS = trim(PROXY_ADDRESS.getStringValue());
         GeneralConfig.CD_PROVIDER = CD_PROVIDER.getEnumValue();
-        GeneralConfig.NETEASE_VIP_COOKIE = trim(NETEASE_VIP_COOKIE.getStringValue());
-        GeneralConfig.QQ_VIP_COOKIE = trim(QQ_VIP_COOKIE.getStringValue());
         ConfigEvent.reloadColors();
         NetMusic.refreshNetEaseApi();
     }

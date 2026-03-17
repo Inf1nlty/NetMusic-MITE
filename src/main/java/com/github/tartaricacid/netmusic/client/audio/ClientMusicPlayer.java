@@ -56,6 +56,21 @@ public final class ClientMusicPlayer {
         }
     }
 
+    public static boolean isPlaying() {
+        synchronized (LOCK) {
+            return currentSound != null;
+        }
+    }
+
+    public static boolean isPlayingAt(int x, int y, int z) {
+        synchronized (LOCK) {
+            return currentSound != null
+                    && currentSound.getX() == x
+                    && currentSound.getY() == y
+                    && currentSound.getZ() == z;
+        }
+    }
+
     private static void stopInternal() {
         stopRequested = true;
         if (playThread != null) {

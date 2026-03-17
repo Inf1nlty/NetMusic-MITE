@@ -41,17 +41,17 @@ public final class QqMusicApi {
     );
 
     private static final FileCandidate[] QUALITY_CANDIDATES = new FileCandidate[]{
-            new FileCandidate("AI00", "flac"),
-            new FileCandidate("Q000", "flac"),
-            new FileCandidate("Q001", "flac"),
-            new FileCandidate("F000", "flac"),
             new FileCandidate("M800", "mp3"),
             new FileCandidate("M500", "mp3"),
             new FileCandidate("RS02", "mp3"),
             new FileCandidate("C600", "m4a"),
             new FileCandidate("C400", "m4a"),
             new FileCandidate("C200", "m4a"),
-            new FileCandidate("C100", "m4a")
+            new FileCandidate("C100", "m4a"),
+            new FileCandidate("AI00", "flac"),
+            new FileCandidate("Q000", "flac"),
+            new FileCandidate("Q001", "flac"),
+            new FileCandidate("F000", "flac")
     };
 
     private QqMusicApi() {
@@ -213,16 +213,34 @@ public final class QqMusicApi {
             return "";
         }
         int limit = Math.min(midurlinfo.size(), QUALITY_CANDIDATES.length);
+        String bestPurl = "";
+        int bestRank = -1;
         for (int i = 0; i < limit; i++) {
             JsonObject info = midurlinfo.get(i).getAsJsonObject();
             if (info != null && info.has("purl")) {
                 String purl = info.get("purl").getAsString();
                 if (StringUtils.isNotBlank(purl)) {
-                    return purl;
+                    int rank = getPlayableRank(purl);
+                    if (rank > bestRank) {
+                        bestRank = rank;
+                        bestPurl = purl;
+                    }
                 }
             }
         }
-        return "";
+        return bestPurl;
+    }
+
+    private static int getPlayableRank(String purl) {
+        if (StringUtils.isBlank(purl)) {
+            return -1;
+        }
+        String lower = purl.toLowerCase(Locale.ROOT);
+        if (lower.endsWith(".mp3")) {
+            return 3;
+        }
+        // In this legacy audio pipeline only MP3 is reliably decodable.
+        return -1;
     }
 
     private static String postJson(String url, String body, Map<String, String> requestHeaders) throws IOException {

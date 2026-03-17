@@ -84,19 +84,19 @@ public class ItemMusicCD extends Item {
     public void addInformation(ItemStack stack, EntityPlayer player, List tooltip, boolean extendedInfo, Slot slot) {
         super.addInformation(stack, player, tooltip, extendedInfo, slot);
         SongInfo songInfo = getSongInfo(stack);
-        final String prefix = "§a▍ §7";
+        final String prefix = "\u00A7a\u258D \u00A77";
         final String delimiter = ": ";
         if (songInfo != null) {
-            if (StringUtils.isNoneBlank(songInfo.transName)) {
-                String text = prefix + StatCollector.translateToLocal("tooltips.netmusic.cd.trans_name") + delimiter + "§6" + songInfo.transName;
+            if (StringUtils.isNotBlank(songInfo.transName)) {
+                String text = prefix + StatCollector.translateToLocal("tooltips.netmusic.cd.trans_name") + delimiter + "\u00A76" + songInfo.transName;
                 tooltip.add(text);
             }
             if (songInfo.artists != null && !songInfo.artists.isEmpty()) {
                 String artistNames = StringUtils.join(songInfo.artists, " | ");
-                String text = prefix + StatCollector.translateToLocal("tooltips.netmusic.cd.artists") + delimiter + "§3" + artistNames;
+                String text = prefix + StatCollector.translateToLocal("tooltips.netmusic.cd.artists") + delimiter + "\u00A73" + artistNames;
                 tooltip.add(text);
             }
-            String text = prefix + StatCollector.translateToLocal("tooltips.netmusic.cd.time") + delimiter + "§5" + getSongTime(songInfo.songTime);
+            String text = prefix + StatCollector.translateToLocal("tooltips.netmusic.cd.time") + delimiter + "\u00A75" + getSongTime(songInfo.songTime);
             tooltip.add(text);
         } else {
             tooltip.add(EnumChatFormatting.RED + StatCollector.translateToLocal("tooltips.netmusic.cd.empty"));
@@ -194,7 +194,7 @@ public class ItemMusicCD extends Item {
             tag.setString("url", info.songUrl);
             tag.setString("name", info.songName);
             tag.setInteger("time", info.songTime);
-            if (StringUtils.isNoneBlank(info.transName)) {
+            if (StringUtils.isNotBlank(info.transName)) {
                 tag.setString("trans_name", info.transName);
             }
             tag.setBoolean("vip", info.vip);
@@ -209,3 +209,4 @@ public class ItemMusicCD extends Item {
         }
     }
 }
+

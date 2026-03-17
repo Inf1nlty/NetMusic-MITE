@@ -45,6 +45,10 @@ public class NetMusicConfigs extends SimpleConfigs {
             "netmusic.general.enable_player_lyrics", true, "netmusic.general.enable_player_lyrics"
     );
 
+    public static final ConfigBoolean ENABLE_DEBUG_MODE = new ConfigBoolean(
+            "netmusic.general.enable_debug_mode", false, "netmusic.general.enable_debug_mode"
+    );
+
     public static final ConfigColor ORIGINAL_PLAYER_LYRICS_COLOR = new ConfigColor(
             "netmusic.general.original_player_lyrics_color", "#FFAAAAAA", "netmusic.general.original_player_lyrics_color"
     );
@@ -65,6 +69,7 @@ public class NetMusicConfigs extends SimpleConfigs {
                 PROXY_ADDRESS,
                 CD_PROVIDER,
                 ENABLE_PLAYER_LYRICS,
+                ENABLE_DEBUG_MODE,
                 ORIGINAL_PLAYER_LYRICS_COLOR,
                 TRANSLATED_PLAYER_LYRICS_COLOR
         );
@@ -85,6 +90,7 @@ public class NetMusicConfigs extends SimpleConfigs {
         GeneralConfig.MUSIC_PLAYER_VOLUME = clampVolume(MUSIC_PLAYER_VOLUME.getDoubleValue());
         GeneralConfig.MUSIC_PLAYER_HEAR_DISTANCE = clampHearDistance(MUSIC_PLAYER_HEAR_DISTANCE.getDoubleValue());
         GeneralConfig.ENABLE_PLAYER_LYRICS = ENABLE_PLAYER_LYRICS.getBooleanValue();
+        GeneralConfig.ENABLE_DEBUG_MODE = ENABLE_DEBUG_MODE.getBooleanValue();
         GeneralConfig.PROXY_TYPE = parseProxyType(PROXY_TYPE.getStringValue());
         GeneralConfig.PROXY_ADDRESS = trim(PROXY_ADDRESS.getStringValue());
         GeneralConfig.CD_PROVIDER = CD_PROVIDER.getEnumValue();

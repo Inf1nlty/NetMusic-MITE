@@ -26,6 +26,9 @@ public final class MusicPlayManager {
 
     public static void play(String url, String songName, Function<URL, Object> sound) {
         String rawUrl = url;
+        if (GeneralConfig.ENABLE_DEBUG_MODE) {
+            NetMusic.LOGGER.info("[NetMusic Debug][Play] request url={} song={}", rawUrl, songName);
+        }
 
         if (shouldResolveQqUrl(url)) {
             try {
@@ -33,6 +36,9 @@ public final class MusicPlayManager {
                 if (qqSong == null || StringUtils.isBlank(qqSong.songUrl)) {
                     NetMusic.LOGGER.warn("Failed to resolve playable QQ url from input: {}", rawUrl);
                     return;
+                }
+                if (GeneralConfig.ENABLE_DEBUG_MODE) {
+                    NetMusic.LOGGER.info("[NetMusic Debug][Play] QQ resolved {} -> {}", rawUrl, qqSong.songUrl);
                 }
                 url = qqSong.songUrl;
             } catch (Exception e) {
@@ -52,6 +58,9 @@ public final class MusicPlayManager {
         if (url.startsWith(MUSIC_163_URL)) {
             try {
                 url = NetWorker.getRedirectUrl(url, NetMusic.NET_EASE_WEB_API.getRequestPropertyData());
+                if (GeneralConfig.ENABLE_DEBUG_MODE) {
+                    NetMusic.LOGGER.info("[NetMusic Debug][Play] NetEase redirect {} -> {}", rawUrl, url);
+                }
             } catch (IOException e) {
                 NetMusic.LOGGER.error("Failed to get redirect URL for: {}", url, e);
                 return;

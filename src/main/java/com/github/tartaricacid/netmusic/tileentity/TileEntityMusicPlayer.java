@@ -229,9 +229,13 @@ public class TileEntityMusicPlayer extends TileEntity {
             return;
         }
         ItemStack stack = this.items[0] == null ? null : this.items[0].copy();
+        ItemMusicCD.SongInfo info = stack == null ? null : ItemMusicCD.getSongInfo(stack);
+        String songUrl = info == null || info.songUrl == null ? "" : info.songUrl;
+        int songTime = info == null ? 0 : Math.max(0, info.songTime);
+        String songName = info == null || info.songName == null ? "" : info.songName;
         NetworkHandler.sendToNearBy(this.worldObj, this.xCoord, this.yCoord, this.zCoord,
                 new MusicPlayerStateMessage(this.xCoord, this.yCoord, this.zCoord,
-                        this.isPlay, this.currentTime, this.hasSignal, stack));
+                        this.isPlay, this.currentTime, this.hasSignal, stack, songUrl, songTime, songName));
     }
 
     private static ItemStack resolveLoadedMusicCd(@Nullable ItemStack loaded, NBTTagCompound itemTag,

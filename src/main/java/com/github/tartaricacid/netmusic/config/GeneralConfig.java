@@ -17,6 +17,7 @@ public class GeneralConfig {
     public static double MUSIC_PLAYER_HEAR_DISTANCE = 64.0D;
 
     public static boolean ENABLE_PLAYER_LYRICS = true;
+    public static boolean ENABLE_DEBUG_MODE = false;
 
     public static void init() {
         if (!REGISTERED) {

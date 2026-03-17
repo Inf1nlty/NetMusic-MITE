@@ -17,6 +17,9 @@ import net.minecraft.TileEntity;
 import org.apache.commons.lang3.StringUtils;
 
 import java.io.IOException;
+import java.util.LinkedHashMap;
+import java.util.Locale;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -24,6 +27,15 @@ public class MusicToClientMessage implements Message {
     public static final ResourceLocation ID = new ResourceLocation(NetMusic.MOD_ID, "play_music");
     private static final String MUSIC_163_URL = "https://music.163.com/";
     private static final Pattern MUSIC_163_ID_PATTERN = Pattern.compile("^.*?[?&]id=(\\d+)\\.mp3$");
+    private static final int LYRIC_CACHE_MAX = 64;
+    private static final long RECOVERY_LYRIC_COOLDOWN_MS = 8000L;
+    private static final Map<String, LyricRecord> LYRIC_CACHE = new LinkedHashMap<String, LyricRecord>(LYRIC_CACHE_MAX + 1, 0.75F, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<String, LyricRecord> eldest) {
+            return this.size() > LYRIC_CACHE_MAX;
+        }
+    };
+    private static final Map<String, Long> LYRIC_MISS_UNTIL = new LinkedHashMap<String, Long>();
 
     public final int x;
     public final int y;
@@ -101,22 +113,9 @@ public class MusicToClientMessage implements Message {
             return;
         }
 
-        LyricRecord lyricRecord = null;
-        if (GeneralConfig.ENABLE_PLAYER_LYRICS) {
-            if (this.url.startsWith(MUSIC_163_URL)) {
-                Matcher matcher = MUSIC_163_ID_PATTERN.matcher(this.url);
-                if (matcher.find()) {
-                    try {
-                        long musicId = Long.parseLong(matcher.group(1));
-                        String lyricJson = NetMusic.NET_EASE_WEB_API.lyric(musicId);
-                        lyricRecord = LyricParser.parseLyric(lyricJson, this.songName);
-                    } catch (NumberFormatException | IOException e) {
-                        NetMusic.LOGGER.warn("Failed to load lyric for {}", this.url, e);
-                    }
-                }
-            } else if (QqMusicApi.isValidMid(QqMusicApi.extractMid(this.url))) {
-                lyricRecord = QqMusicApi.resolveLyric(this.url, this.songName);
-            }
+        LyricRecord lyricRecord = resolveLyricRecord(this.url, this.songName, this.startTick > 0);
+        if (lyricRecord != null) {
+            lyricRecord.updateCurrentLine(Math.max(0, this.startTick));
         }
 
         if (playerTile != null) {
@@ -143,5 +142,70 @@ public class MusicToClientMessage implements Message {
         } catch (Exception ignored) {
         }
         return 0;
+    }
+
+    private static LyricRecord resolveLyricRecord(String url, String songName, boolean recovery) {
+        if (!GeneralConfig.ENABLE_PLAYER_LYRICS || StringUtils.isBlank(url)) {
+            return null;
+        }
+        String key = lyricKey(url, songName);
+        synchronized (LYRIC_CACHE) {
+            LyricRecord cached = LYRIC_CACHE.get(key);
+            if (cached != null) {
+                return cached;
+            }
+            Long until = LYRIC_MISS_UNTIL.get(key);
+            if (until != null && System.currentTimeMillis() < until.longValue()) {
+                return null;
+            }
+        }
+
+        if (recovery) {
+            synchronized (LYRIC_CACHE) {
+                Long until = LYRIC_MISS_UNTIL.get(key);
+                if (until != null && System.currentTimeMillis() < until.longValue()) {
+                    return null;
+                }
+            }
+        }
+
+        LyricRecord resolved = doResolveLyric(url, songName);
+        synchronized (LYRIC_CACHE) {
+            if (resolved != null) {
+                LYRIC_CACHE.put(key, resolved);
+                LYRIC_MISS_UNTIL.remove(key);
+            } else {
+                long cooldown = recovery ? RECOVERY_LYRIC_COOLDOWN_MS : 3000L;
+                LYRIC_MISS_UNTIL.put(key, System.currentTimeMillis() + cooldown);
+            }
+        }
+        return resolved;
+    }
+
+    private static LyricRecord doResolveLyric(String url, String songName) {
+        if (url.startsWith(MUSIC_163_URL)) {
+            Matcher matcher = MUSIC_163_ID_PATTERN.matcher(url);
+            if (matcher.find()) {
+                try {
+                    long musicId = Long.parseLong(matcher.group(1));
+                    String lyricJson = NetMusic.NET_EASE_WEB_API.lyric(musicId);
+                    return LyricParser.parseLyric(lyricJson, songName);
+                } catch (NumberFormatException | IOException e) {
+                    NetMusic.LOGGER.warn("Failed to load lyric for {}", url, e);
+                    return null;
+                }
+            }
+            return null;
+        }
+        if (QqMusicApi.isValidMid(QqMusicApi.extractMid(url))) {
+            return QqMusicApi.resolveLyric(url, songName);
+        }
+        return null;
+    }
+
+    private static String lyricKey(String url, String songName) {
+        String safeUrl = url == null ? "" : url.trim().toLowerCase(Locale.ROOT);
+        String safeName = songName == null ? "" : songName.trim().toLowerCase(Locale.ROOT);
+        return safeUrl + "|" + safeName;
     }
 }

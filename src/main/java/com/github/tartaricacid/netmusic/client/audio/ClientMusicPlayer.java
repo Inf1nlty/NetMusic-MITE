@@ -16,6 +16,8 @@ import javax.sound.sampled.SourceDataLine;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.net.URL;
+import java.net.URLConnection;
+import java.util.Locale;
 import java.util.Random;
 
 public final class ClientMusicPlayer {
@@ -249,6 +251,9 @@ public final class ClientMusicPlayer {
             if ("file".equalsIgnoreCase(songUrl.getProtocol())) {
                 return new FileInputStream(new java.io.File(songUrl.toURI()));
             }
+            if (shouldUseDirectHttpStream(songUrl)) {
+                return openDirectHttpStream(songUrl);
+            }
             return new ChunkedAudioStream(songUrl, NetWorker.getProxyFromConfig());
         } catch (Exception e) {
             NetMusic.LOGGER.error("Failed to open audio source: {}", songUrl, e);
@@ -263,6 +268,46 @@ public final class ClientMusicPlayer {
             // Best-effort: ID3 skipping is only needed for some MP3 streams.
         }
         return input;
+    }
+
+    private static boolean shouldUseDirectHttpStream(URL songUrl) {
+        String host = songUrl.getHost();
+        if (host == null) {
+            return false;
+        }
+        String lower = host.toLowerCase(Locale.ROOT);
+        return lower.contains("qq.com");
+    }
+
+    private static InputStream openDirectHttpStream(URL songUrl) throws Exception {
+        URLConnection connection = songUrl.openConnection(NetWorker.getProxyFromConfig());
+        connection.setUseCaches(false);
+        connection.setConnectTimeout(12000);
+        // Keep long-lived VIP streams stable while still allowing timeout-based recovery.
+        connection.setReadTimeout(45000);
+        applyDirectRequestHeaders(connection, songUrl);
+        if (GeneralConfig.ENABLE_DEBUG_MODE) {
+            NetMusic.LOGGER.info("[NetMusic Debug] Use direct stream for host={} url={}", songUrl.getHost(), songUrl);
+        }
+        return connection.getInputStream();
+    }
+
+    private static void applyDirectRequestHeaders(URLConnection connection, URL songUrl) {
+        connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:115.0) Gecko/20100101 Firefox/115.0");
+        connection.setRequestProperty("Accept", "*/*");
+        connection.setRequestProperty("Connection", "keep-alive");
+        String host = songUrl.getHost() == null ? "" : songUrl.getHost().toLowerCase(Locale.ROOT);
+        if (host.contains("qq.com")) {
+            connection.setRequestProperty("Referer", "https://y.qq.com/");
+            connection.setRequestProperty("Origin", "https://y.qq.com");
+            if (GeneralConfig.hasQqVipCookie()) {
+                connection.setRequestProperty("Cookie", GeneralConfig.QQ_VIP_COOKIE);
+            }
+            return;
+        }
+        if (host.contains("music.163.com") && GeneralConfig.hasNeteaseVipCookie()) {
+            connection.setRequestProperty("Cookie", GeneralConfig.NETEASE_VIP_COOKIE);
+        }
     }
 
     private static AudioFormat chooseDecodedPcmFormat(AudioFormat source) {

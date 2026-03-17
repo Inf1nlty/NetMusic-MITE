@@ -87,6 +87,14 @@ public final class QqMusicApi {
         return trimmed;
     }
 
+    public static String toSongDetailUrl(String inputOrMid) {
+        String mid = extractMid(inputOrMid);
+        if (!isValidMid(mid)) {
+            return StringUtils.trimToEmpty(inputOrMid);
+        }
+        return "https://y.qq.com/n/ryqq_v2/songDetail/" + mid;
+    }
+
     public static boolean isValidMid(String input) {
         return StringUtils.isNotBlank(input) && MID_REG.matcher(input).matches();
     }
@@ -111,23 +119,31 @@ public final class QqMusicApi {
     public static ItemMusicCD.SongInfo resolveSong(String input) throws Exception {
         String mid = extractMid(input);
         if (!isValidMid(mid)) {
+            debug("resolveSong invalid input={} normalizedMid={}", shorten(input, 160), mid);
             return null;
         }
+        debug("resolveSong input={} mid={}", shorten(input, 160), mid);
 
         String cookie = sanitizeCookie(GeneralConfig.QQ_VIP_COOKIE);
         String uin = extractUin(cookie);
         TrackInfo trackInfo = getTrackInfoByMid(mid, cookie, uin);
         if (trackInfo == null || StringUtils.isBlank(trackInfo.songName)) {
+            debug("resolveSong trackInfo empty mid={}", mid);
             return null;
         }
+        debug("resolveSong track mid={} name={} vip={} interval={} mediaMid={} artists={}",
+                mid, trackInfo.songName, trackInfo.vip, trackInfo.interval, trackInfo.mediaMid, trackInfo.artists == null ? 0 : trackInfo.artists.size());
 
         String mediaMid = StringUtils.isBlank(trackInfo.mediaMid) ? mid : trackInfo.mediaMid;
         JsonObject vkeyData = requestVkeyData(mid, mediaMid, buildRequestHeaders(cookie), uin);
+        debug("resolveSong vkey summary mid={} => {}", mid, summarizeVkeyData(vkeyData));
         String baseUrl = resolveBaseUrl(vkeyData);
         String purl = selectBestPurl(vkeyData == null ? null : vkeyData.getAsJsonArray("midurlinfo"));
         if (StringUtils.isBlank(purl)) {
+            debug("resolveSong no playable purl mid={}", mid);
             return null;
         }
+        debug("resolveSong chosen mid={} baseUrl={} purl={}", mid, shorten(baseUrl, 96), shorten(purl, 196));
 
         ItemMusicCD.SongInfo info = new ItemMusicCD.SongInfo();
         info.songUrl = withSongMidFragment(baseUrl + purl, mid);
@@ -293,6 +309,8 @@ public final class QqMusicApi {
                 String purl = info.get("purl").getAsString();
                 if (StringUtils.isNotBlank(purl)) {
                     int rank = getPlayableRank(purl, getStringOrEmpty(info, "filename"));
+                    debug("selectBestPurl candidate rank={} filename={} purl={}",
+                            rank, getStringOrEmpty(info, "filename"), shorten(purl, 160));
                     if (rank > bestRank) {
                         bestRank = rank;
                         bestPurl = purl;
@@ -300,6 +318,7 @@ public final class QqMusicApi {
                 }
             }
         }
+        debug("selectBestPurl selected rank={} purl={}", bestRank, shorten(bestPurl, 180));
         return bestPurl;
     }
 
@@ -308,13 +327,39 @@ public final class QqMusicApi {
             return -1;
         }
         String extension = detectAudioExtension(purl, filename);
-        if ("mp3".equals(extension)) {
-            return 3;
-        }
         if ("flac".equals(extension)) {
-            return 2;
+            return 10 + getQualityBonus(purl, filename);
+        }
+        if ("mp3".equals(extension)) {
+            return 5 + getQualityBonus(purl, filename);
         }
         return -1;
+    }
+
+    private static int getQualityBonus(String purl, String filename) {
+        String merged = ((purl == null ? "" : purl) + " " + (filename == null ? "" : filename)).toLowerCase(Locale.ROOT);
+        if (merged.contains("f000")) {
+            return 40;
+        }
+        if (merged.contains("q001")) {
+            return 36;
+        }
+        if (merged.contains("q000")) {
+            return 34;
+        }
+        if (merged.contains("ai00")) {
+            return 32;
+        }
+        if (merged.contains("m800")) {
+            return 24;
+        }
+        if (merged.contains("m500")) {
+            return 20;
+        }
+        if (merged.contains("rs02")) {
+            return 16;
+        }
+        return 0;
     }
 
     private static String detectAudioExtension(String purl, String filename) {
@@ -325,7 +370,7 @@ public final class QqMusicApi {
         if (normalizedPurl.endsWith(".flac")) {
             return "flac";
         }
-        String normalizedFilename = StringUtils.defaultString(filename).toLowerCase(Locale.ROOT);
+        String normalizedFilename = (filename == null ? "" : filename).toLowerCase(Locale.ROOT);
         if (normalizedFilename.endsWith(".mp3")) {
             return "mp3";
         }
@@ -447,6 +492,7 @@ public final class QqMusicApi {
     }
 
     private static String postJson(String url, String body, Map<String, String> requestHeaders) throws IOException {
+        debug("POST {} payload={}", url, shorten(body, 600));
         URLConnection connection = new URL(url).openConnection(NetWorker.getProxyFromConfig());
         for (Map.Entry<String, String> header : requestHeaders.entrySet()) {
             connection.setRequestProperty(header.getKey(), header.getValue());
@@ -470,6 +516,7 @@ public final class QqMusicApi {
                 result.append(line);
             }
         }
+        debug("POST {} response={}", url, shorten(result.toString(), 1200));
         return result.toString();
     }
 
@@ -722,6 +769,50 @@ public final class QqMusicApi {
             builder.append(entry.getKey()).append("=").append(entry.getValue());
         }
         return builder.toString();
+    }
+
+    private static String summarizeVkeyData(JsonObject data) {
+        if (data == null) {
+            return "null";
+        }
+        StringBuilder sb = new StringBuilder();
+        JsonArray midurlinfo = data.getAsJsonArray("midurlinfo");
+        int size = midurlinfo == null ? 0 : midurlinfo.size();
+        sb.append("midurlinfo=").append(size);
+        if (midurlinfo != null) {
+            int limit = Math.min(6, midurlinfo.size());
+            for (int i = 0; i < limit; i++) {
+                JsonElement element = midurlinfo.get(i);
+                if (element == null || !element.isJsonObject()) {
+                    continue;
+                }
+                JsonObject item = element.getAsJsonObject();
+                String filename = getStringOrEmpty(item, "filename");
+                String purl = getStringOrEmpty(item, "purl");
+                sb.append(" | ").append(i).append(":")
+                        .append(filename)
+                        .append(" purl=")
+                        .append(StringUtils.isBlank(purl) ? 0 : purl.length());
+            }
+        }
+        return sb.toString();
+    }
+
+    private static void debug(String pattern, Object... args) {
+        if (!GeneralConfig.ENABLE_DEBUG_MODE) {
+            return;
+        }
+        NetMusic.LOGGER.info("[NetMusic Debug][QQ] " + pattern, args);
+    }
+
+    private static String shorten(String text, int maxLen) {
+        if (text == null) {
+            return "null";
+        }
+        if (maxLen <= 0 || text.length() <= maxLen) {
+            return text;
+        }
+        return text.substring(0, maxLen) + "...(len=" + text.length() + ")";
     }
 
     private static final class FileCandidate {

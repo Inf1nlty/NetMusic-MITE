@@ -2,11 +2,14 @@ package com.github.tartaricacid.netmusic.tileentity;
 
 import com.github.tartaricacid.netmusic.api.lyric.LyricRecord;
 import com.github.tartaricacid.netmusic.block.BlockMusicPlayer;
+import com.github.tartaricacid.netmusic.init.InitItems;
 import com.github.tartaricacid.netmusic.item.ItemMusicCD;
 import com.github.tartaricacid.netmusic.network.NetworkHandler;
 import com.github.tartaricacid.netmusic.network.message.MusicToClientMessage;
 import net.minecraft.ItemStack;
 import net.minecraft.NBTTagCompound;
+import net.minecraft.Packet;
+import net.minecraft.Packet132TileEntityData;
 import net.minecraft.TileEntity;
 
 import javax.annotation.Nullable;
@@ -37,7 +40,9 @@ public class TileEntityMusicPlayer extends TileEntity {
         this.currentTime = nbt.getInteger(CURRENT_TIME_TAG);
         this.hasSignal = nbt.getBoolean(SIGNAL_TAG);
         if (nbt.hasKey(ITEM_TAG)) {
-            this.items[0] = ItemStack.loadItemStackFromNBT(nbt.getCompoundTag(ITEM_TAG));
+            NBTTagCompound itemTag = nbt.getCompoundTag(ITEM_TAG);
+            ItemStack loaded = ItemStack.loadItemStackFromNBT(itemTag);
+            this.items[0] = loaded != null ? loaded : rebuildMusicCdFallback(itemTag);
         } else {
             this.items[0] = null;
         }
@@ -63,6 +68,7 @@ public class TileEntityMusicPlayer extends TileEntity {
             return;
         }
         this.items[0] = stack;
+        this.setChanged();
     }
 
     public ItemStack removeItem(int slot, int amount) {
@@ -75,12 +81,14 @@ public class TileEntityMusicPlayer extends TileEntity {
         }
         if (stack.stackSize <= amount) {
             this.items[0] = null;
+            this.setChanged();
             return stack;
         }
         ItemStack split = stack.splitStack(amount);
         if (stack.stackSize <= 0) {
             this.items[0] = null;
         }
+        this.setChanged();
         return split;
     }
 
@@ -113,6 +121,10 @@ public class TileEntityMusicPlayer extends TileEntity {
             setCurrentTime(0);
         }
         this.onInventoryChanged();
+        if (this.worldObj != null) {
+            this.worldObj.markBlockForUpdate(this.xCoord, this.yCoord, this.zCoord);
+            this.worldObj.markBlockForRenderUpdate(this.xCoord, this.yCoord, this.zCoord);
+        }
     }
 
     @Override
@@ -161,5 +173,39 @@ public class TileEntityMusicPlayer extends TileEntity {
         if (currentTime > 0) {
             currentTime--;
         }
+    }
+
+    @Override
+    public Packet getDescriptionPacket() {
+        NBTTagCompound nbt = new NBTTagCompound();
+        this.writeToNBT(nbt);
+        return new Packet132TileEntityData(this.xCoord, this.yCoord, this.zCoord, 1, nbt);
+    }
+
+    private static ItemStack rebuildMusicCdFallback(NBTTagCompound itemTag) {
+        if (itemTag == null || !itemTag.hasKey("tag")) {
+            return null;
+        }
+        NBTTagCompound rootTag = itemTag.getCompoundTag("tag");
+        if (!rootTag.hasKey(ItemMusicCD.SONG_INFO_TAG)) {
+            return null;
+        }
+
+        ItemStack rebuilt = new ItemStack(InitItems.MUSIC_CD, 1);
+        if (itemTag.hasKey("Count")) {
+            int count = Math.max(1, itemTag.getByte("Count"));
+            rebuilt.stackSize = count;
+        }
+        if (itemTag.hasKey("Damage")) {
+            rebuilt.setItemDamage(itemTag.getShort("Damage"));
+        }
+
+        NBTTagCompound rebuiltTag = new NBTTagCompound();
+        rebuiltTag.setCompoundTag(
+                ItemMusicCD.SONG_INFO_TAG,
+                (NBTTagCompound) rootTag.getCompoundTag(ItemMusicCD.SONG_INFO_TAG).copy()
+        );
+        rebuilt.setTagCompound(rebuiltTag);
+        return rebuilt;
     }
 }

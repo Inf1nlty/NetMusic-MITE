@@ -30,12 +30,6 @@ public class GuiCDBurnerScreen extends GuiContainer {
     private static final ResourceLocation BG = new ResourceLocation("netmusic", "textures/gui/cd_burner.png");
     private static final String NETEASE_LOGIN_URL = "https://music.163.com/#/login";
     private static final String QQ_LOGIN_URL = "https://y.qq.com/";
-    private static final Set<String> NETEASE_KEYS = Set.of(
-            "MUSIC_U", "MUSIC_A", "__csrf", "NMTID", "MUSIC_R_T", "MUSIC_SNS"
-    );
-    private static final Set<String> QQ_KEYS = Set.of(
-            "uin", "p_uin", "qm_keyst", "qqmusic_key", "p_skey", "pt4_token", "wxuin"
-    );
     private static final Set<String> COOKIE_ATTRIBUTES = Set.of(
             "path", "domain", "expires", "max-age", "httponly", "secure", "samesite", "priority"
     );
@@ -238,42 +232,32 @@ public class GuiCDBurnerScreen extends GuiContainer {
     }
 
     private static String buildNeteaseCookie(Map<String, String> pairs) {
-        StringBuilder cookie = new StringBuilder();
-        for (String key : NETEASE_KEYS) {
-            appendIfPresent(cookie, pairs, key);
-        }
         // Minimal usable keys: MUSIC_U or MUSIC_A.
-        if (cookie.length() == 0 || (!containsKey(pairs, "MUSIC_U") && !containsKey(pairs, "MUSIC_A"))) {
+        if (!containsKey(pairs, "MUSIC_U") && !containsKey(pairs, "MUSIC_A")) {
             return "";
         }
-        return cookie.toString();
+        return joinCookiePairs(pairs);
     }
 
     private static String buildQqCookie(Map<String, String> pairs) {
-        StringBuilder cookie = new StringBuilder();
-        for (String key : QQ_KEYS) {
-            appendIfPresent(cookie, pairs, key);
-        }
         // Minimal usable keys: (uin or p_uin) + (qm_keyst or qqmusic_key).
         boolean hasUin = containsKey(pairs, "uin") || containsKey(pairs, "p_uin");
         boolean hasKey = containsKey(pairs, "qm_keyst") || containsKey(pairs, "qqmusic_key");
-        if (cookie.length() == 0 || !hasUin || !hasKey) {
+        if (!hasUin || !hasKey) {
             return "";
         }
-        return cookie.toString();
+        return joinCookiePairs(pairs);
     }
 
-    private static void appendIfPresent(StringBuilder cookie, Map<String, String> pairs, String key) {
+    private static String joinCookiePairs(Map<String, String> pairs) {
+        StringBuilder cookie = new StringBuilder();
         for (Map.Entry<String, String> entry : pairs.entrySet()) {
-            if (!entry.getKey().equalsIgnoreCase(key)) {
-                continue;
-            }
             if (cookie.length() > 0) {
                 cookie.append("; ");
             }
             cookie.append(entry.getKey()).append("=").append(entry.getValue());
-            return;
         }
+        return cookie.toString();
     }
 
     private static boolean containsKey(Map<String, String> pairs, String key) {

@@ -26,6 +26,7 @@ public final class ClientMusicPlayer {
     private static volatile boolean stopRequested;
     private static volatile int playSession;
     private static volatile float dynamicVolume = 1.0F;
+    private static volatile boolean gamePaused;
     private static int currentTick;
     private static final Random RANDOM = new Random();
     private static final float MAX_HEAR_DISTANCE = 32.0F;
@@ -42,6 +43,7 @@ public final class ClientMusicPlayer {
             currentSound = sound;
             currentTick = 0;
             dynamicVolume = (float) GeneralConfig.MUSIC_PLAYER_VOLUME;
+            gamePaused = false;
             stopRequested = false;
             int session = ++playSession;
             playThread = new Thread(() -> stream(sound, session), "NetMusic-Player");
@@ -65,6 +67,7 @@ public final class ClientMusicPlayer {
         currentSound = null;
         currentTick = 0;
         dynamicVolume = 0.0F;
+        gamePaused = false;
     }
 
     /**
@@ -91,9 +94,10 @@ public final class ClientMusicPlayer {
         }
 
         if (mc.isGamePaused) {
-            stopAndClearTile(mc, sound);
+            gamePaused = true;
             return;
         }
+        gamePaused = false;
 
         // Stop if the player moved too far away (vanilla sound engine would attenuate/stop naturally).
         double dx = mc.thePlayer.posX - (sound.getX() + 0.5D);
@@ -178,9 +182,29 @@ public final class ClientMusicPlayer {
                         line.start();
                         byte[] buffer = new byte[8192];
                         int read;
+                        boolean paused = false;
                         while (session == playSession && !stopRequested && !Thread.currentThread().isInterrupted()
-                                && System.currentTimeMillis() < timeoutAt
-                                && (read = finalPcm.read(buffer, 0, buffer.length)) != -1) {
+                                && System.currentTimeMillis() < timeoutAt) {
+                            if (gamePaused) {
+                                if (!paused) {
+                                    line.stop();
+                                    paused = true;
+                                }
+                                try {
+                                    Thread.sleep(50L);
+                                } catch (InterruptedException interruptedException) {
+                                    Thread.currentThread().interrupt();
+                                    break;
+                                }
+                                continue;
+                            } else if (paused) {
+                                line.start();
+                                paused = false;
+                            }
+                            read = finalPcm.read(buffer, 0, buffer.length);
+                            if (read == -1) {
+                                break;
+                            }
                             applyPcmVolume(buffer, read, dynamicVolume);
                             line.write(buffer, 0, read);
                         }

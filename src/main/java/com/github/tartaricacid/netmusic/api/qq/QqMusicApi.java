@@ -33,8 +33,8 @@ public final class QqMusicApi {
     private static final int DEFAULT_SONG_TIME_SECONDS = 300;
     private static final Pattern URL_SONG_DETAIL = Pattern.compile("^https?://y\\.qq\\.com/n/ryqq(?:_v2)?/songDetail/([A-Za-z0-9]+).*$");
     private static final Pattern URL_PLAY_SONG = Pattern.compile("^https?://i\\.y\\.qq\\.com/v8/playsong\\.html\\?songmid=([A-Za-z0-9]+).*$");
-    private static final Pattern URL_QUERY_MID = Pattern.compile("^https?://.*[?&](?:songmid|mid)=([A-Za-z0-9]+).*$");
-    private static final Pattern STREAM_FILE_MID = Pattern.compile("(?i)/(?:M800|M500|RS02|C600|C400|C200|C100|AI00|Q000|Q001|F000)([A-Za-z0-9]{4,})\\.(?:mp3|m4a|flac)(?:\\?.*)?$");
+    private static final Pattern URL_QUERY_MID = Pattern.compile("^https?://.*(?:[?&#](?:songmid|mid|netmusic_songmid)=)([A-Za-z0-9]+).*$");
+    private static final Pattern STREAM_FILE_MID = Pattern.compile("(?i)/(?:M800|M500|RS02|C600|C400|C200|C100|AI00|Q000|Q001|F000)([A-Za-z0-9]{4,})\\.(?:mp3|m4a|flac)(?:\\?.*)?(?:#.*)?$");
     private static final Pattern MID_REG = Pattern.compile("^[A-Za-z0-9]{4,}$");
     private static final Pattern UIN_REG = Pattern.compile("(?i)(?:^|;\\s*)(?:uin|p_uin)=o?(\\d+)");
     private static final String DEFAULT_SIP = "http://ws.stream.qqmusic.qq.com/";
@@ -130,7 +130,7 @@ public final class QqMusicApi {
         }
 
         ItemMusicCD.SongInfo info = new ItemMusicCD.SongInfo();
-        info.songUrl = baseUrl + purl;
+        info.songUrl = withSongMidFragment(baseUrl + purl, mid);
         info.songName = trackInfo.songName;
         info.songTime = normalizeSongTime(trackInfo.interval);
         info.vip = trackInfo.vip;
@@ -149,24 +149,40 @@ public final class QqMusicApi {
         try {
             String cookie = sanitizeCookie(GeneralConfig.QQ_VIP_COOKIE);
             String uin = extractUin(cookie);
+            LyricRecord record = resolveLyricByMid(mid, songName, cookie, uin);
+            if (record != null) {
+                return record;
+            }
 
-            JsonObject root = requestLyricByMusicu(mid, cookie, uin);
-            if (root == null) {
-                root = requestLyricByLegacy(mid, cookie);
+            String searchedMid = searchSongMidByName(songName, cookie, uin);
+            if (isValidMid(searchedMid) && !StringUtils.equalsIgnoreCase(searchedMid, mid)) {
+                return resolveLyricByMid(searchedMid, songName, cookie, uin);
             }
-            if (root == null) {
-                return null;
-            }
-            String original = decodeLyricField(getStringOrEmpty(root, "lyric"));
-            if (StringUtils.isBlank(original)) {
-                return null;
-            }
-            String translated = decodeLyricField(getStringOrEmpty(root, "trans"));
-            return LyricParser.parseLrcText(original, translated, songName);
+            return null;
         } catch (Exception e) {
             NetMusic.LOGGER.warn("Failed to resolve QQ lyric for {}", input, e);
             return null;
         }
+    }
+
+    @Nullable
+    private static LyricRecord resolveLyricByMid(String mid, String songName, String cookie, String uin) {
+        if (!isValidMid(mid)) {
+            return null;
+        }
+        JsonObject root = requestLyricByMusicu(mid, cookie, uin);
+        if (root == null) {
+            root = requestLyricByLegacy(mid, cookie);
+        }
+        if (root == null) {
+            return null;
+        }
+        String original = decodeLyricField(getStringOrEmpty(root, "lyric"));
+        if (StringUtils.isBlank(original)) {
+            return null;
+        }
+        String translated = decodeLyricField(getStringOrEmpty(root, "trans"));
+        return LyricParser.parseLrcText(original, translated, songName);
     }
 
     private static TrackInfo getTrackInfoByMid(String mid, String cookie, String uin) throws Exception {
@@ -351,6 +367,83 @@ public final class QqMusicApi {
 
     private static int normalizeSongTime(int rawTimeSecond) {
         return rawTimeSecond > 0 ? rawTimeSecond : DEFAULT_SONG_TIME_SECONDS;
+    }
+
+    private static String withSongMidFragment(String url, String mid) {
+        if (StringUtils.isBlank(url) || !isValidMid(mid)) {
+            return url;
+        }
+        int fragmentIndex = url.indexOf('#');
+        String base = fragmentIndex >= 0 ? url.substring(0, fragmentIndex) : url;
+        return base + "#netmusic_songmid=" + mid;
+    }
+
+    private static String searchSongMidByName(String songName, String cookie, String uin) {
+        if (StringUtils.isBlank(songName)) {
+            return null;
+        }
+        try {
+            JsonObject comm = new JsonObject();
+            comm.addProperty("ct", "19");
+            comm.addProperty("cv", "1859");
+            comm.addProperty("uin", safeUin(uin));
+
+            JsonObject param = new JsonObject();
+            param.addProperty("grp", 1);
+            param.addProperty("num_per_page", 10);
+            param.addProperty("page_num", 1);
+            param.addProperty("query", songName);
+            param.addProperty("search_type", 0);
+
+            JsonObject req = new JsonObject();
+            req.addProperty("method", "DoSearchForQQMusicDesktop");
+            req.addProperty("module", "music.search.SearchCgiService");
+            req.add("param", param);
+
+            JsonObject body = new JsonObject();
+            body.add("comm", comm);
+            body.add("req", req);
+
+            JsonObject tree = parseJsonObject(postJson("https://u.y.qq.com/cgi-bin/musicu.fcg", body.toString(), buildRequestHeaders(cookie)));
+            JsonObject reqObj = getObject(tree, "req");
+            JsonObject data = getObject(reqObj, "data");
+            JsonObject bodyObj = getObject(data, "body");
+            JsonObject songObj = getObject(bodyObj, "song");
+            JsonArray list = songObj == null ? null : songObj.getAsJsonArray("list");
+            if (list == null || list.size() <= 0) {
+                return null;
+            }
+
+            String normalizedQuery = normalizeSongName(songName);
+            String firstMid = null;
+            for (JsonElement element : list) {
+                if (element == null || !element.isJsonObject()) {
+                    continue;
+                }
+                JsonObject song = element.getAsJsonObject();
+                String mid = getStringOrEmpty(song, "mid");
+                if (!isValidMid(mid)) {
+                    continue;
+                }
+                if (firstMid == null) {
+                    firstMid = mid;
+                }
+                String foundName = normalizeSongName(getStringOrEmpty(song, "name"));
+                if (StringUtils.isNotBlank(foundName) && foundName.equals(normalizedQuery)) {
+                    return mid;
+                }
+            }
+            return firstMid;
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private static String normalizeSongName(String name) {
+        if (StringUtils.isBlank(name)) {
+            return "";
+        }
+        return name.trim().toLowerCase(Locale.ROOT).replaceAll("\\s+", "");
     }
 
     private static String postJson(String url, String body, Map<String, String> requestHeaders) throws IOException {

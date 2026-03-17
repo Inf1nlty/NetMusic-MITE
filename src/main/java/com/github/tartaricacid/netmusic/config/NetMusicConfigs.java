@@ -1,6 +1,7 @@
 package com.github.tartaricacid.netmusic.config;
 
 import com.github.tartaricacid.netmusic.NetMusic;
+import com.github.tartaricacid.netmusic.event.ConfigEvent;
 import fi.dy.masa.malilib.config.SimpleConfigs;
 import fi.dy.masa.malilib.config.options.ConfigBase;
 import fi.dy.masa.malilib.config.options.ConfigBoolean;
@@ -93,8 +94,7 @@ public class NetMusicConfigs extends SimpleConfigs {
         GeneralConfig.CD_PROVIDER = CD_PROVIDER.getEnumValue();
         GeneralConfig.NETEASE_VIP_COOKIE = trim(NETEASE_VIP_COOKIE.getStringValue());
         GeneralConfig.QQ_VIP_COOKIE = trim(QQ_VIP_COOKIE.getStringValue());
-        GeneralConfig.ORIGINAL_PLAYER_LYRICS_COLOR = normalizeColor(ORIGINAL_PLAYER_LYRICS_COLOR.getStringValue(), "#FFAAAAAA");
-        GeneralConfig.TRANSLATED_PLAYER_LYRICS_COLOR = normalizeColor(TRANSLATED_PLAYER_LYRICS_COLOR.getStringValue(), "#FFFFFFFF");
+        ConfigEvent.reloadColors();
         NetMusic.refreshNetEaseApi();
     }
 
@@ -113,14 +113,6 @@ public class NetMusicConfigs extends SimpleConfigs {
             return Proxy.Type.SOCKS;
         }
         return Proxy.Type.DIRECT;
-    }
-
-    private static String normalizeColor(String value, String fallback) {
-        String color = trim(value).toUpperCase();
-        if ((color.length() == 7 || color.length() == 9) && color.startsWith("#")) {
-            return color;
-        }
-        return fallback;
     }
 
     private static String trim(String value) {

@@ -1,6 +1,6 @@
 package com.github.tartaricacid.netmusic.event;
 
-import com.github.tartaricacid.netmusic.config.GeneralConfig;
+import com.github.tartaricacid.netmusic.config.NetMusicConfigs;
 import org.apache.commons.lang3.math.NumberUtils;
 
 public class ConfigEvent {
@@ -17,13 +17,19 @@ public class ConfigEvent {
     }
 
     public static void reloadColors() {
-        PLAYER_ORIGINAL_COLOR = parseColor(GeneralConfig.ORIGINAL_PLAYER_LYRICS_COLOR);
-        PLAYER_TRANSLATED_COLOR = parseColor(GeneralConfig.TRANSLATED_PLAYER_LYRICS_COLOR);
+        PLAYER_ORIGINAL_COLOR = parseColor(
+                NetMusicConfigs.ORIGINAL_PLAYER_LYRICS_COLOR.getStringValue(),
+                0xFF_AAAAAA
+        );
+        PLAYER_TRANSLATED_COLOR = parseColor(
+                NetMusicConfigs.TRANSLATED_PLAYER_LYRICS_COLOR.getStringValue(),
+                0xFF_FFFFFF
+        );
     }
 
-    public static int parseColor(String colorString) {
+    public static int parseColor(String colorString, int fallback) {
         if (colorString == null || !colorString.startsWith("#")) {
-            return 0xFF_FFFFFF;
+            return fallback;
         }
 
         try {
@@ -35,7 +41,7 @@ public class ConfigEvent {
             }
             return NumberUtils.createLong("0x" + hex).intValue();
         } catch (NumberFormatException e) {
-            return 0xFF_FFFFFF;
+            return fallback;
         }
     }
 }

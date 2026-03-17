@@ -16,8 +16,6 @@ public class GeneralConfig {
     public static double MUSIC_PLAYER_VOLUME = 1.0D;
 
     public static boolean ENABLE_PLAYER_LYRICS = true;
-    public static String ORIGINAL_PLAYER_LYRICS_COLOR = "#FFAAAAAA";
-    public static String TRANSLATED_PLAYER_LYRICS_COLOR = "#FFFFFFFF";
 
     public static void init() {
         if (!REGISTERED) {

@@ -1,6 +1,9 @@
 package com.github.tartaricacid.netmusic.api.qq;
 
+import com.github.tartaricacid.netmusic.NetMusic;
 import com.github.tartaricacid.netmusic.api.NetWorker;
+import com.github.tartaricacid.netmusic.api.lyric.LyricParser;
+import com.github.tartaricacid.netmusic.api.lyric.LyricRecord;
 import com.github.tartaricacid.netmusic.config.GeneralConfig;
 import com.github.tartaricacid.netmusic.item.ItemMusicCD;
 import com.google.gson.JsonArray;
@@ -9,6 +12,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import org.apache.commons.lang3.StringUtils;
 
+import javax.annotation.Nullable;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -16,6 +20,7 @@ import java.io.OutputStream;
 import java.net.URL;
 import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Locale;
@@ -25,12 +30,16 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public final class QqMusicApi {
-    private static final Pattern URL_SONG_DETAIL = Pattern.compile("^https?://y\\.qq\\.com/n/ryqq/songDetail/([A-Za-z0-9]+).*$");
+    private static final Pattern URL_SONG_DETAIL = Pattern.compile("^https?://y\\.qq\\.com/n/ryqq(?:_v2)?/songDetail/([A-Za-z0-9]+).*$");
     private static final Pattern URL_PLAY_SONG = Pattern.compile("^https?://i\\.y\\.qq\\.com/v8/playsong\\.html\\?songmid=([A-Za-z0-9]+).*$");
     private static final Pattern URL_QUERY_MID = Pattern.compile("^https?://.*[?&](?:songmid|mid)=([A-Za-z0-9]+).*$");
+    private static final Pattern STREAM_FILE_MID = Pattern.compile("(?i)/(?:M800|M500|RS02|C600|C400|C200|C100|AI00|Q000|Q001|F000)([A-Za-z0-9]{4,})\\.(?:mp3|m4a|flac)(?:\\?.*)?$");
     private static final Pattern MID_REG = Pattern.compile("^[A-Za-z0-9]{4,}$");
     private static final Pattern UIN_REG = Pattern.compile("(?i)(?:^|;\\s*)(?:uin|p_uin)=o?(\\d+)");
     private static final String DEFAULT_SIP = "http://ws.stream.qqmusic.qq.com/";
+    private static final String QQ_LYRIC_API = "https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg"
+            + "?songmid=%s&g_tk=5381&format=json&inCharset=utf8&outCharset=utf-8"
+            + "&nobase64=1&notice=0&platform=yqq.json&needNewCode=0";
     private static final String[] QQ_COOKIE_KEYS = new String[]{
             "uin", "p_uin", "qqmusic_uin",
             "qm_keyst", "qqmusic_key",
@@ -78,11 +87,28 @@ public final class QqMusicApi {
     }
 
     public static boolean isValidMid(String input) {
-        return MID_REG.matcher(input).matches();
+        return StringUtils.isNotBlank(input) && MID_REG.matcher(input).matches();
+    }
+
+    @Nullable
+    public static String extractMid(String input) {
+        if (StringUtils.isBlank(input)) {
+            return null;
+        }
+        String normalized = normalizeInput(input);
+        if (isValidMid(normalized)) {
+            return normalized;
+        }
+        Matcher matcher = STREAM_FILE_MID.matcher(input.trim());
+        if (matcher.find()) {
+            String mid = matcher.group(1);
+            return isValidMid(mid) ? mid : null;
+        }
+        return null;
     }
 
     public static ItemMusicCD.SongInfo resolveSong(String input) throws Exception {
-        String mid = normalizeInput(input);
+        String mid = extractMid(input);
         if (!isValidMid(mid)) {
             return null;
         }
@@ -111,6 +137,35 @@ public final class QqMusicApi {
             info.artists.addAll(trackInfo.artists);
         }
         return info;
+    }
+
+    @Nullable
+    public static LyricRecord resolveLyric(String input, String songName) {
+        String mid = extractMid(input);
+        if (!isValidMid(mid)) {
+            return null;
+        }
+        try {
+            String cookie = sanitizeCookie(GeneralConfig.QQ_VIP_COOKIE);
+            String uin = extractUin(cookie);
+
+            JsonObject root = requestLyricByMusicu(mid, cookie, uin);
+            if (root == null) {
+                root = requestLyricByLegacy(mid, cookie);
+            }
+            if (root == null) {
+                return null;
+            }
+            String original = decodeLyricField(getStringOrEmpty(root, "lyric"));
+            if (StringUtils.isBlank(original)) {
+                return null;
+            }
+            String translated = decodeLyricField(getStringOrEmpty(root, "trans"));
+            return LyricParser.parseLrcText(original, translated, songName);
+        } catch (Exception e) {
+            NetMusic.LOGGER.warn("Failed to resolve QQ lyric for {}", input, e);
+            return null;
+        }
     }
 
     private static TrackInfo getTrackInfoByMid(String mid, String cookie, String uin) throws Exception {
@@ -365,6 +420,88 @@ public final class QqMusicApi {
 
     private static String safeUin(String uin) {
         return StringUtils.isBlank(uin) ? "0" : uin;
+    }
+
+    @Nullable
+    private static JsonObject requestLyricByMusicu(String mid, String cookie, String uin) {
+        try {
+            JsonObject param = new JsonObject();
+            param.addProperty("songMID", mid);
+            param.addProperty("songID", 0);
+            param.addProperty("trans_t", 0);
+            param.addProperty("roma_t", 0);
+            param.addProperty("crypt", 0);
+            param.addProperty("lrc_t", 0);
+            param.addProperty("qrc_t", 0);
+
+            JsonObject req = new JsonObject();
+            req.addProperty("module", "music.musichallSong.PlayLyricInfo");
+            req.addProperty("method", "GetPlayLyricInfo");
+            req.add("param", param);
+
+            JsonObject comm = new JsonObject();
+            comm.addProperty("uin", safeUin(uin));
+            comm.addProperty("format", "json");
+            comm.addProperty("ct", 24);
+            comm.addProperty("cv", 0);
+
+            JsonObject body = new JsonObject();
+            body.add("req_1", req);
+            body.addProperty("loginUin", safeUin(uin));
+            body.add("comm", comm);
+
+            Map<String, String> headers = buildRequestHeaders(cookie);
+            headers.put("Referer", "https://y.qq.com/");
+            JsonObject tree = parseJsonObject(postJson("https://u.y.qq.com/cgi-bin/musicu.fcg", body.toString(), headers));
+            JsonObject req1 = getObject(tree, "req_1");
+            JsonObject data = getObject(req1, "data");
+            if (data != null) {
+                return data;
+            }
+            JsonObject playLyricInfo = getObject(tree, "PlayLyricInfo");
+            if (playLyricInfo != null) {
+                JsonObject nestedData = getObject(playLyricInfo, "data");
+                if (nestedData != null) {
+                    return nestedData;
+                }
+            }
+            if (tree != null && tree.has("lyric")) {
+                return tree;
+            }
+            return null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    @Nullable
+    private static JsonObject requestLyricByLegacy(String mid, String cookie) {
+        try {
+            Map<String, String> headers = buildRequestHeaders(cookie);
+            headers.put("Referer", "https://y.qq.com/portal/player.html");
+            headers.put("Origin", "https://y.qq.com");
+            String json = NetWorker.get(String.format(Locale.ROOT, QQ_LYRIC_API, mid), headers);
+            return parseJsonObject(json);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static String decodeLyricField(String raw) {
+        if (StringUtils.isBlank(raw)) {
+            return "";
+        }
+        String text = raw.trim();
+        if (text.startsWith("[") || text.contains("\n")) {
+            return text;
+        }
+        try {
+            byte[] decoded = Base64.getDecoder().decode(text);
+            String decodedText = new String(decoded, StandardCharsets.UTF_8);
+            return decodedText.trim();
+        } catch (Exception ignored) {
+            return text;
+        }
     }
 
     private static boolean containsKey(Map<String, String> pairs, String key) {

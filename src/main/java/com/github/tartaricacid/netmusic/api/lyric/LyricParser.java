@@ -56,6 +56,31 @@ public class LyricParser {
         }
     }
 
+    @Nullable
+    public static LyricRecord parseLrcText(String originalLrc, @Nullable String translatedLrc, String songName) {
+        if (StringUtils.isBlank(originalLrc)) {
+            return null;
+        }
+        Int2ObjectSortedMap<String> splitOriginal = splitLyric(originalLrc);
+        if (splitOriginal.isEmpty()) {
+            return null;
+        }
+        if (!splitOriginal.containsKey(0)) {
+            splitOriginal.put(0, songName);
+        }
+
+        if (StringUtils.isNotBlank(translatedLrc)) {
+            Int2ObjectSortedMap<String> splitTranslated = splitLyric(translatedLrc);
+            if (!splitTranslated.isEmpty()) {
+                if (!splitTranslated.containsKey(0)) {
+                    splitTranslated.put(0, songName);
+                }
+                return new LyricRecord(splitOriginal, splitTranslated);
+            }
+        }
+        return new LyricRecord(splitOriginal);
+    }
+
     private static Int2ObjectSortedMap<String> splitLyric(String lrcContent) {
         Int2ObjectSortedMap<String> lyrics = new Int2ObjectRBTreeMap<>();
 

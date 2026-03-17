@@ -3,6 +3,7 @@ package com.github.tartaricacid.netmusic.network.message;
 import com.github.tartaricacid.netmusic.NetMusic;
 import com.github.tartaricacid.netmusic.api.lyric.LyricParser;
 import com.github.tartaricacid.netmusic.api.lyric.LyricRecord;
+import com.github.tartaricacid.netmusic.api.qq.QqMusicApi;
 import com.github.tartaricacid.netmusic.client.audio.ClientMusicPlayer;
 import com.github.tartaricacid.netmusic.client.audio.MusicPlayManager;
 import com.github.tartaricacid.netmusic.client.audio.NetMusicSound;
@@ -83,16 +84,20 @@ public class MusicToClientMessage implements Message {
         }
 
         LyricRecord lyricRecord = null;
-        if (GeneralConfig.ENABLE_PLAYER_LYRICS && this.url.startsWith(MUSIC_163_URL)) {
-            Matcher matcher = MUSIC_163_ID_PATTERN.matcher(this.url);
-            if (matcher.find()) {
-                try {
-                    long musicId = Long.parseLong(matcher.group(1));
-                    String lyricJson = NetMusic.NET_EASE_WEB_API.lyric(musicId);
-                    lyricRecord = LyricParser.parseLyric(lyricJson, this.songName);
-                } catch (NumberFormatException | IOException e) {
-                    NetMusic.LOGGER.warn("Failed to load lyric for {}", this.url, e);
+        if (GeneralConfig.ENABLE_PLAYER_LYRICS) {
+            if (this.url.startsWith(MUSIC_163_URL)) {
+                Matcher matcher = MUSIC_163_ID_PATTERN.matcher(this.url);
+                if (matcher.find()) {
+                    try {
+                        long musicId = Long.parseLong(matcher.group(1));
+                        String lyricJson = NetMusic.NET_EASE_WEB_API.lyric(musicId);
+                        lyricRecord = LyricParser.parseLyric(lyricJson, this.songName);
+                    } catch (NumberFormatException | IOException e) {
+                        NetMusic.LOGGER.warn("Failed to load lyric for {}", this.url, e);
+                    }
                 }
+            } else if (QqMusicApi.isValidMid(QqMusicApi.extractMid(this.url))) {
+                lyricRecord = QqMusicApi.resolveLyric(this.url, this.songName);
             }
         }
 

@@ -37,10 +37,14 @@ public class MusicPlayerTileEntityRenderer extends TileEntitySpecialRenderer {
         }
         mc.getTextureManager().bindTexture(TEXTURE);
         GL11.glPushMatrix();
-        // Match upstream item transform: pre-scale by 4/3 then render the 0.75 model as WEST-facing.
-        GL11.glScalef(4.0F / 3.0F, 4.0F / 3.0F, 4.0F / 3.0F);
-        GL11.glTranslatef(0.5F - 0.5F / MODEL_SCALE, 0.0F, 0.5F - 0.5F / MODEL_SCALE);
-        renderModelCore(90.0F);
+        // Match assets/netmusic/models/item/music_player.json GUI display transform.
+        GL11.glTranslatef(0.5F, 0.5F, 0.5F);
+        GL11.glTranslatef(0.0F, -2.5F / 16.0F, 0.0F);
+        GL11.glRotatef(22.5F, 1.0F, 0.0F, 0.0F);
+        GL11.glRotatef(22.5F, 0.0F, 1.0F, 0.0F);
+        GL11.glScalef(0.5F, 0.5F, 0.5F);
+        GL11.glTranslatef(-0.5F, -0.5F, -0.5F);
+        renderModelCore(0.0F);
         GL11.glPopMatrix();
     }
 

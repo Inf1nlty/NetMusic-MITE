@@ -1,6 +1,7 @@
 package com.github.tartaricacid.netmusic.util;
 
 import com.github.tartaricacid.netmusic.NetMusic;
+import com.github.tartaricacid.netmusic.api.qq.QqMusicApi;
 import com.github.tartaricacid.netmusic.item.ItemMusicCD;
 import org.apache.commons.lang3.StringUtils;
 
@@ -25,6 +26,21 @@ public final class ComputerInputParser {
         if (StringUtils.isBlank(rawUrl)) {
             return ScreenSubmitResult.fail("gui.netmusic.computer.url.empty");
         }
+
+        String urlText = trimQuotes(rawUrl.trim());
+        if (shouldTryResolveQq(urlText)) {
+            try {
+                ItemMusicCD.SongInfo qqSong = SongInfoHelper.sanitize(QqMusicApi.resolveSong(urlText));
+                if (qqSong != null) {
+                    qqSong.readOnly = readOnly;
+                    return ScreenSubmitResult.success(qqSong);
+                }
+            } catch (Exception e) {
+                // Continue with normal URL parsing when this is not a QQ link.
+                NetMusic.LOGGER.debug("Failed to resolve QQ input from computer URL: {}", urlText, e);
+            }
+        }
+
         if (StringUtils.isBlank(rawName)) {
             return ScreenSubmitResult.fail("gui.netmusic.computer.name.empty");
         }
@@ -47,7 +63,6 @@ public final class ComputerInputParser {
             return ScreenSubmitResult.fail("gui.netmusic.computer.time.not_number");
         }
 
-        String urlText = trimQuotes(rawUrl.trim());
         if (URL_HTTP_REG.matcher(urlText).matches()) {
             return createResult(urlText, rawName.trim(), time, readOnly);
         }
@@ -99,5 +114,16 @@ public final class ComputerInputParser {
             return value.substring(1, value.length() - 1).trim();
         }
         return value;
+    }
+
+    private static boolean shouldTryResolveQq(String urlText) {
+        if (StringUtils.isBlank(urlText)) {
+            return false;
+        }
+        if (QqMusicApi.isValidMid(urlText)) {
+            return true;
+        }
+        String lower = urlText.toLowerCase();
+        return lower.contains("y.qq.com") || lower.contains("qqmusic.qq.com") || lower.contains("i.y.qq.com");
     }
 }

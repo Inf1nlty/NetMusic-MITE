@@ -32,6 +32,7 @@ public final class ClientMusicPlayer {
     private static volatile boolean streamStarted;
     private static int missingTileTicks;
     private static int currentTick;
+    private static int currentPlaybackSessionId;
     private static String currentSourceId = "";
     private static String pendingSourceId = "";
     private static int pendingX;
@@ -43,10 +44,14 @@ public final class ClientMusicPlayer {
     private ClientMusicPlayer() {}
 
     public static void play(NetMusicSound sound) {
-        play(sound, null);
+        play(sound, null, 0);
     }
 
     public static void play(NetMusicSound sound, String sourceId) {
+        play(sound, sourceId, 0);
+    }
+
+    public static void play(NetMusicSound sound, String sourceId, int playbackSessionId) {
         if (sound == null) {
             return;
         }
@@ -58,6 +63,7 @@ public final class ClientMusicPlayer {
             dynamicVolume = (float) GeneralConfig.MUSIC_PLAYER_VOLUME;
             gamePaused = false;
             missingTileTicks = 0;
+            currentPlaybackSessionId = Math.max(0, playbackSessionId);
             currentSourceId = normalizeSourceId(sourceId, sound);
             stopRequested = false;
             int session = ++playSession;
@@ -99,6 +105,22 @@ public final class ClientMusicPlayer {
                 return false;
             }
             return normalized.equals(currentSourceId);
+        }
+    }
+
+    public static boolean isPlayingAtSession(int x, int y, int z, int playbackSessionId) {
+        int safeSession = Math.max(0, playbackSessionId);
+        if (safeSession == 0) {
+            return false;
+        }
+        synchronized (LOCK) {
+            if (currentSound == null) {
+                return false;
+            }
+            if (currentSound.getX() != x || currentSound.getY() != y || currentSound.getZ() != z) {
+                return false;
+            }
+            return safeSession == currentPlaybackSessionId;
         }
     }
 
@@ -192,6 +214,7 @@ public final class ClientMusicPlayer {
         missingTileTicks = 0;
         dynamicVolume = 0.0F;
         gamePaused = false;
+        currentPlaybackSessionId = 0;
         currentSourceId = "";
         clearPendingLocked();
     }
@@ -585,7 +608,7 @@ public final class ClientMusicPlayer {
         if (value == null) {
             return "";
         }
-        return value.trim();
+        return value.trim().toLowerCase(Locale.ROOT);
     }
 
     private static void clearPendingLocked() {

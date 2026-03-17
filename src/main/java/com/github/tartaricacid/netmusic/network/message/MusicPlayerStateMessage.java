@@ -27,6 +27,7 @@ public class MusicPlayerStateMessage implements Message {
     private final boolean play;
     private final int currentTime;
     private final boolean signal;
+    private final int playSessionId;
     private final ItemStack stack;
     private final String songUrl;
     private final int songTime;
@@ -34,25 +35,31 @@ public class MusicPlayerStateMessage implements Message {
 
     public MusicPlayerStateMessage(PacketByteBuf buf) {
         this(buf.readInt(), buf.readInt(), buf.readInt(), buf.readBoolean(), buf.readInt(), buf.readBoolean(), buf.readItemStack(),
-                readOptionalString(buf), readOptionalInt(buf), readOptionalString(buf));
+                readOptionalString(buf), readOptionalInt(buf), readOptionalString(buf), readOptionalInt(buf));
     }
 
     public MusicPlayerStateMessage(int x, int y, int z, boolean play, int currentTime, boolean signal, ItemStack stack) {
-        this(x, y, z, play, currentTime, signal, stack, "", 0, "");
+        this(x, y, z, play, currentTime, signal, 0, stack, "", 0, "");
     }
 
-    public MusicPlayerStateMessage(int x, int y, int z, boolean play, int currentTime, boolean signal, ItemStack stack,
-                                   String songUrl, int songTime, String songName) {
+    public MusicPlayerStateMessage(int x, int y, int z, boolean play, int currentTime, boolean signal, int playSessionId,
+                                   ItemStack stack, String songUrl, int songTime, String songName) {
         this.x = x;
         this.y = y;
         this.z = z;
         this.play = play;
         this.currentTime = currentTime;
         this.signal = signal;
+        this.playSessionId = Math.max(0, playSessionId);
         this.stack = stack == null ? null : stack.copy();
         this.songUrl = songUrl == null ? "" : songUrl;
         this.songTime = Math.max(0, songTime);
         this.songName = songName == null ? "" : songName;
+    }
+
+    private MusicPlayerStateMessage(int x, int y, int z, boolean play, int currentTime, boolean signal, ItemStack stack,
+                                   String songUrl, int songTime, String songName, int playSessionId) {
+        this(x, y, z, play, currentTime, signal, playSessionId, stack, songUrl, songTime, songName);
     }
 
     @Override
@@ -67,6 +74,7 @@ public class MusicPlayerStateMessage implements Message {
         buf.writeString(this.songUrl);
         buf.writeInt(this.songTime);
         buf.writeString(this.songName);
+        buf.writeInt(this.playSessionId);
     }
 
     @Override
@@ -76,7 +84,7 @@ public class MusicPlayerStateMessage implements Message {
         }
         TileEntity tileEntity = entityPlayer.worldObj.getBlockTileEntity(this.x, this.y, this.z);
         if (tileEntity instanceof TileEntityMusicPlayer musicPlayer) {
-            musicPlayer.applyClientSync(this.play, this.currentTime, this.signal, this.stack == null ? null : this.stack.copy());
+            musicPlayer.applyClientSync(this.play, this.currentTime, this.signal, this.playSessionId, this.stack == null ? null : this.stack.copy());
         }
 
         if (!this.play || this.songTime <= 0 || StringUtils.isBlank(this.songUrl)) {
@@ -86,13 +94,17 @@ public class MusicPlayerStateMessage implements Message {
             return;
         }
 
+        if (this.playSessionId > 0 && ClientMusicPlayer.isPlayingAtSession(this.x, this.y, this.z, this.playSessionId)) {
+            return;
+        }
+
         String sourceId = MusicToClientMessage.buildPlaybackSourceId(this.songUrl, this.songTime, this.songName);
         if (ClientMusicPlayer.isPlayingAtSource(this.x, this.y, this.z, sourceId)
                 || ClientMusicPlayer.isPendingAtSource(this.x, this.y, this.z, sourceId)) {
             return;
         }
 
-        String recoveryKey = this.x + "," + this.y + "," + this.z + "|" + sourceId;
+        String recoveryKey = this.x + "," + this.y + "," + this.z + "|" + this.playSessionId + "|" + sourceId;
         long now = System.currentTimeMillis();
         if (!shouldAttemptRecovery(recoveryKey, now)) {
             return;
@@ -100,7 +112,7 @@ public class MusicPlayerStateMessage implements Message {
 
         int startTick = TileEntityMusicPlayer.computeStartTick(this.songTime, this.currentTime);
         MusicToClientMessage.applyClientPlayback(entityPlayer, this.x, this.y, this.z,
-                this.songUrl, this.songTime, this.songName, startTick, false);
+                this.songUrl, this.songTime, this.songName, startTick, this.playSessionId, false);
     }
 
     @Override

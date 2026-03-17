@@ -49,6 +49,7 @@ public class MusicToClientMessage implements Message {
     public final int timeSecond;
     public final String songName;
     public final int startTick;
+    public final int playSessionId;
 
     public MusicToClientMessage(PacketByteBuf packetByteBuf) {
         this(
@@ -58,15 +59,20 @@ public class MusicToClientMessage implements Message {
                 packetByteBuf.readString(),
                 packetByteBuf.readInt(),
                 packetByteBuf.readString(),
-                readOptionalStartTick(packetByteBuf)
+                readOptionalStartTick(packetByteBuf),
+                readOptionalInt(packetByteBuf)
         );
     }
 
     public MusicToClientMessage(int x, int y, int z, String url, int timeSecond, String songName) {
-        this(x, y, z, url, timeSecond, songName, 0);
+        this(x, y, z, url, timeSecond, songName, 0, 0);
     }
 
     public MusicToClientMessage(int x, int y, int z, String url, int timeSecond, String songName, int startTick) {
+        this(x, y, z, url, timeSecond, songName, startTick, 0);
+    }
+
+    public MusicToClientMessage(int x, int y, int z, String url, int timeSecond, String songName, int startTick, int playSessionId) {
         this.x = x;
         this.y = y;
         this.z = z;
@@ -74,6 +80,7 @@ public class MusicToClientMessage implements Message {
         this.timeSecond = timeSecond;
         this.songName = songName;
         this.startTick = Math.max(0, startTick);
+        this.playSessionId = Math.max(0, playSessionId);
     }
 
     @Override
@@ -85,6 +92,7 @@ public class MusicToClientMessage implements Message {
         packetByteBuf.writeInt(this.timeSecond);
         packetByteBuf.writeString(this.songName == null ? "" : this.songName);
         packetByteBuf.writeInt(this.startTick);
+        packetByteBuf.writeInt(this.playSessionId);
     }
 
     @Override
@@ -94,12 +102,12 @@ public class MusicToClientMessage implements Message {
 
     @Override
     public void apply(EntityPlayer entityPlayer) {
-        applyClientPlayback(entityPlayer, this.x, this.y, this.z, this.url, this.timeSecond, this.songName, this.startTick, true);
+        applyClientPlayback(entityPlayer, this.x, this.y, this.z, this.url, this.timeSecond, this.songName, this.startTick, this.playSessionId, true);
     }
 
     public static void applyClientPlayback(EntityPlayer entityPlayer, int x, int y, int z,
                                            String url, int timeSecond, String songName,
-                                           int startTick, boolean updateTile) {
+                                           int startTick, int playSessionId, boolean updateTile) {
         if (entityPlayer == null || entityPlayer.worldObj == null || !entityPlayer.worldObj.isRemote) {
             return;
         }
@@ -108,6 +116,7 @@ public class MusicToClientMessage implements Message {
         TileEntityMusicPlayer playerTile = tile instanceof TileEntityMusicPlayer ? (TileEntityMusicPlayer) tile : null;
         int safeStartTick = Math.max(0, startTick);
         int safeTimeSecond = Math.max(0, timeSecond);
+        int safePlaySessionId = Math.max(0, playSessionId);
         String safeUrl = url == null ? "" : url;
         String safeSongName = songName == null ? "" : songName;
 
@@ -128,6 +137,10 @@ public class MusicToClientMessage implements Message {
             if (ClientMusicPlayer.isPlayingAt(x, y, z)) {
                 ClientMusicPlayer.stop();
             }
+            return;
+        }
+
+        if (safePlaySessionId > 0 && ClientMusicPlayer.isPlayingAtSession(x, y, z, safePlaySessionId)) {
             return;
         }
 
@@ -163,7 +176,7 @@ public class MusicToClientMessage implements Message {
         LyricRecord finalLyricRecord = lyricRecord;
         if (isDirectAudioUrl(safeUrl)) {
             try {
-                ClientMusicPlayer.play(new NetMusicSound(x, y, z, new URL(safeUrl), safeTimeSecond, finalLyricRecord, safeStartTick), sourceId);
+                ClientMusicPlayer.play(new NetMusicSound(x, y, z, new URL(safeUrl), safeTimeSecond, finalLyricRecord, safeStartTick), sourceId, safePlaySessionId);
                 return;
             } catch (Exception e) {
                 NetMusic.LOGGER.warn("Failed to play direct url from server sync: {}", safeUrl, e);
@@ -174,7 +187,7 @@ public class MusicToClientMessage implements Message {
             if (finalLyricRecord != null) {
                 finalLyricRecord.updateCurrentLine(safeStartTick);
             }
-            ClientMusicPlayer.play(new NetMusicSound(x, y, z, resolved, safeTimeSecond, finalLyricRecord, safeStartTick), sourceId);
+            ClientMusicPlayer.play(new NetMusicSound(x, y, z, resolved, safeTimeSecond, finalLyricRecord, safeStartTick), sourceId, safePlaySessionId);
             return null;
         });
     }
@@ -217,15 +230,15 @@ public class MusicToClientMessage implements Message {
         }
         Matcher fragmentMid = QQ_MID_PATTERN.matcher(url);
         if (fragmentMid.find()) {
-            return fragmentMid.group(1);
+            return fragmentMid.group(1).toLowerCase(Locale.ROOT);
         }
         Matcher detailMid = QQ_SONG_DETAIL_PATTERN.matcher(url);
         if (detailMid.find()) {
-            return detailMid.group(1);
+            return detailMid.group(1).toLowerCase(Locale.ROOT);
         }
         Matcher fileMid = QQ_FILENAME_MID_PATTERN.matcher(url);
         if (fileMid.find()) {
-            return fileMid.group(1);
+            return fileMid.group(1).toLowerCase(Locale.ROOT);
         }
         return "";
     }
@@ -264,6 +277,16 @@ public class MusicToClientMessage implements Message {
     }
 
     private static int readOptionalStartTick(PacketByteBuf buf) {
+        try {
+            if (buf.getInputStream() != null && buf.getInputStream().available() >= 4) {
+                return Math.max(0, buf.readInt());
+            }
+        } catch (Exception ignored) {
+        }
+        return 0;
+    }
+
+    private static int readOptionalInt(PacketByteBuf buf) {
         try {
             if (buf.getInputStream() != null && buf.getInputStream().available() >= 4) {
                 return Math.max(0, buf.readInt());

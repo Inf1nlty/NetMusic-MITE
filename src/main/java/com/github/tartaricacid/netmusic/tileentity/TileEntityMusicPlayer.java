@@ -20,6 +20,7 @@ public class TileEntityMusicPlayer extends TileEntity {
     private static final String IS_PLAY_TAG = "IsPlay";
     private static final String CURRENT_TIME_TAG = "CurrentTime";
     private static final String SIGNAL_TAG = "RedStoneSignal";
+    private static final String PLAY_SESSION_TAG = "PlaySessionId";
     private static final String ITEM_TAG = "MusicCd";
     private static final String ITEM_INFO_TAG = "MusicCdInfo";
     private static final String ITEM_COUNT_TAG = "MusicCdCount";
@@ -30,6 +31,7 @@ public class TileEntityMusicPlayer extends TileEntity {
     private int currentTime;
     private boolean hasSignal = false;
     private int syncTickCounter = 0;
+    private int playSessionId = 0;
     private @Nullable ItemMusicCD.SongInfo activeSongInfo;
 
     /**
@@ -46,6 +48,7 @@ public class TileEntityMusicPlayer extends TileEntity {
         this.isPlay = nbt.getBoolean(IS_PLAY_TAG);
         this.currentTime = nbt.getInteger(CURRENT_TIME_TAG);
         this.hasSignal = nbt.getBoolean(SIGNAL_TAG);
+        this.playSessionId = Math.max(0, nbt.getInteger(PLAY_SESSION_TAG));
         NBTTagCompound infoTag = nbt.hasKey(ITEM_INFO_TAG) ? nbt.getCompoundTag(ITEM_INFO_TAG) : null;
         int savedCount = Math.max(1, nbt.getInteger(ITEM_COUNT_TAG));
         int savedSubtype = nbt.getInteger(ITEM_SUBTYPE_TAG);
@@ -67,6 +70,7 @@ public class TileEntityMusicPlayer extends TileEntity {
         nbt.setBoolean(IS_PLAY_TAG, this.isPlay);
         nbt.setInteger(CURRENT_TIME_TAG, this.currentTime);
         nbt.setBoolean(SIGNAL_TAG, this.hasSignal);
+        nbt.setInteger(PLAY_SESSION_TAG, this.playSessionId);
         if (this.items[0] != null) {
             ItemStack stack = this.items[0];
             nbt.setCompoundTag(ITEM_TAG, stack.writeToNBT(new NBTTagCompound()));
@@ -134,10 +138,11 @@ public class TileEntityMusicPlayer extends TileEntity {
         this.activeSongInfo = sanitized;
         this.setCurrentTime(sanitized.songTime * 20 + 64);
         this.isPlay = true;
+        this.playSessionId = nextPlaySessionId(this.playSessionId);
         if (this.worldObj != null && !this.worldObj.isRemote) {
             NetworkHandler.sendToNearBy(this.worldObj, this.xCoord, this.yCoord, this.zCoord,
                     new MusicToClientMessage(this.xCoord, this.yCoord, this.zCoord,
-                            sanitized.songUrl, sanitized.songTime, sanitized.songName, 0));
+                            sanitized.songUrl, sanitized.songTime, sanitized.songName, 0, this.playSessionId));
             this.syncStateToClients();
         }
     }
@@ -219,10 +224,11 @@ public class TileEntityMusicPlayer extends TileEntity {
         return new Packet132TileEntityData(this.xCoord, this.yCoord, this.zCoord, 1, nbt);
     }
 
-    public void applyClientSync(boolean play, int currentTime, boolean signal, @Nullable ItemStack stack) {
+    public void applyClientSync(boolean play, int currentTime, boolean signal, int playSessionId, @Nullable ItemStack stack) {
         this.isPlay = play;
         this.currentTime = currentTime;
         this.hasSignal = signal;
+        this.playSessionId = Math.max(0, playSessionId);
         this.items[0] = stack;
         if (stack == null) {
             this.lyricRecord = null;
@@ -246,7 +252,7 @@ public class TileEntityMusicPlayer extends TileEntity {
         String songName = info == null || info.songName == null ? "" : info.songName;
         NetworkHandler.sendToNearBy(this.worldObj, this.xCoord, this.yCoord, this.zCoord,
                 new MusicPlayerStateMessage(this.xCoord, this.yCoord, this.zCoord,
-                        this.isPlay, this.currentTime, this.hasSignal, stack, songUrl, songTime, songName));
+                        this.isPlay, this.currentTime, this.hasSignal, this.playSessionId, stack, songUrl, songTime, songName));
     }
 
     public static int computeStartTick(int songTimeSecond, int currentTime) {
@@ -333,5 +339,12 @@ public class TileEntityMusicPlayer extends TileEntity {
         ItemStack rebuilt = new ItemStack(InitItems.MUSIC_CD, Math.max(1, count), subtype);
         ItemMusicCD.setSongInfo(info, rebuilt);
         return rebuilt;
+    }
+
+    private static int nextPlaySessionId(int current) {
+        if (current >= Integer.MAX_VALUE - 1) {
+            return 1;
+        }
+        return current + 1;
     }
 }

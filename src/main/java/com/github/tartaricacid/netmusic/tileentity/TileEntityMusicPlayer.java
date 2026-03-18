@@ -12,6 +12,7 @@ import net.minecraft.ItemStack;
 import net.minecraft.NBTTagCompound;
 import net.minecraft.Packet;
 import net.minecraft.Packet132TileEntityData;
+import net.minecraft.ServerPlayer;
 import net.minecraft.TileEntity;
 
 import javax.annotation.Nullable;
@@ -34,6 +35,8 @@ public class TileEntityMusicPlayer extends TileEntity {
     private int syncTickCounter = 0;
     private int playSessionId = 0;
     private @Nullable ItemMusicCD.SongInfo activeSongInfo;
+    private long playbackStartWorldTick = -1L;
+    private long offlinePauseStartWorldTick = -1L;
 
     /**
      * 仅客户端使用，记录当前音乐的歌词信息，用于渲染歌词
@@ -140,6 +143,7 @@ public class TileEntityMusicPlayer extends TileEntity {
     public void setPlay(boolean play) {
         if (!play) {
             this.activeSongInfo = null;
+            this.resetPlaybackClock();
         }
         isPlay = play;
     }
@@ -153,6 +157,10 @@ public class TileEntityMusicPlayer extends TileEntity {
         this.setCurrentTime(sanitized.songTime * 20 + 64);
         this.isPlay = true;
         this.playSessionId = nextPlaySessionId(this.playSessionId);
+        if (this.worldObj != null && !this.worldObj.isRemote) {
+            this.playbackStartWorldTick = this.worldObj.getTotalWorldTime();
+            this.offlinePauseStartWorldTick = -1L;
+        }
         if (this.worldObj != null && !this.worldObj.isRemote) {
             this.syncStateToClients();
         }
@@ -182,7 +190,10 @@ public class TileEntityMusicPlayer extends TileEntity {
             return;
         }
 
-        this.tickTime();
+        if (this.updatePlaybackClockFromWorldTime()) {
+            return;
+        }
+
         this.syncTickCounter++;
         if (this.syncTickCounter >= 20) {
             this.syncTickCounter = 0;
@@ -204,6 +215,66 @@ public class TileEntityMusicPlayer extends TileEntity {
                 }
             }
         }
+    }
+
+    private boolean hasAnyOnlinePlayerInWorld() {
+        if (this.worldObj == null || this.worldObj.playerEntities == null || this.worldObj.playerEntities.isEmpty()) {
+            return false;
+        }
+        for (Object obj : this.worldObj.playerEntities) {
+            if (!(obj instanceof ServerPlayer player)) {
+                continue;
+            }
+            if (player.playerNetServerHandler != null && !player.playerNetServerHandler.connectionClosed) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean updatePlaybackClockFromWorldTime() {
+        if (!this.isPlay || this.worldObj == null || this.worldObj.isRemote) {
+            return false;
+        }
+
+        ItemMusicCD.SongInfo info = this.resolvePlaybackInfo(this.items[0]);
+        if (info == null || info.songTime <= 0) {
+            this.setPlay(false);
+            this.currentTime = 0;
+            return false;
+        }
+
+        int totalTicks = Math.max(1, info.songTime) * 20 + 64;
+        long now = this.worldObj.getTotalWorldTime();
+
+        if (this.playbackStartWorldTick < 0L) {
+            int safeCurrent = Math.max(0, Math.min(totalTicks, this.currentTime));
+            int elapsedFromCurrent = Math.max(0, totalTicks - safeCurrent);
+            this.playbackStartWorldTick = now - elapsedFromCurrent;
+        }
+
+        if (!this.hasAnyOnlinePlayerInWorld()) {
+            if (this.offlinePauseStartWorldTick < 0L) {
+                this.offlinePauseStartWorldTick = now;
+            }
+            return true;
+        }
+
+        if (this.offlinePauseStartWorldTick >= 0L) {
+            long pausedTicks = Math.max(0L, now - this.offlinePauseStartWorldTick);
+            this.playbackStartWorldTick += pausedTicks;
+            this.offlinePauseStartWorldTick = -1L;
+        }
+
+        long elapsed = Math.max(0L, now - this.playbackStartWorldTick);
+        long cappedElapsed = Math.min(Integer.MAX_VALUE, elapsed);
+        this.currentTime = Math.max(0, totalTicks - (int) cappedElapsed);
+        return false;
+    }
+
+    private void resetPlaybackClock() {
+        this.playbackStartWorldTick = -1L;
+        this.offlinePauseStartWorldTick = -1L;
     }
 
     public void setCurrentTime(int time) {

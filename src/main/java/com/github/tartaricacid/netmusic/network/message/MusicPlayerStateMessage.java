@@ -8,7 +8,6 @@ import net.minecraft.EntityPlayer;
 import net.minecraft.ItemStack;
 import net.minecraft.ResourceLocation;
 import net.minecraft.TileEntity;
-import org.apache.commons.lang3.StringUtils;
 
 public class MusicPlayerStateMessage implements Message {
     public static final ResourceLocation ID = new ResourceLocation(NetMusic.MOD_ID, "music_player_state");
@@ -79,9 +78,12 @@ public class MusicPlayerStateMessage implements Message {
             musicPlayer.applyClientSync(this.play, this.currentTime, this.signal, this.playSessionId, this.stack == null ? null : this.stack.copy());
         }
 
-        if (!this.play || this.songTime <= 0 || StringUtils.isBlank(this.songUrl)) {
+        // State packet is authoritative for play/stop only.
+        // Song URL/time can be transiently empty during reload/rejoin in MITE,
+        // but playback bootstrap/recovery is handled by MusicToClientMessage.
+        if (!this.play) {
             if (ClientMusicPlayer.isPlayingAt(this.x, this.y, this.z)) {
-                ClientMusicPlayer.stop();
+                ClientMusicPlayer.stop("state_play_false");
             }
             return;
         }

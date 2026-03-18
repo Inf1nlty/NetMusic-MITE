@@ -141,23 +141,37 @@ public class MusicToClientMessage implements Message {
 
         if (StringUtils.isBlank(safeUrl)) {
             if (ClientMusicPlayer.isPlayingAt(x, y, z)) {
-                ClientMusicPlayer.stop();
+                ClientMusicPlayer.stop("sync_blank_url");
             }
             return;
         }
 
-        if (safePlaySessionId > 0 && ClientMusicPlayer.isPlayingAtSession(x, y, z, safePlaySessionId)) {
+        // Session is authoritative: if server session differs, force a clean restart.
+        if (safePlaySessionId > 0) {
+            if (ClientMusicPlayer.isPlayingAtSession(x, y, z, safePlaySessionId)) {
+                ClientMusicPlayer.syncServerTickAt(x, y, z, safeStartTick);
+                if (playerTile != null && playerTile.lyricRecord != null) {
+                    playerTile.lyricRecord.updateCurrentLine(safeStartTick);
+                }
+                return;
+            }
+            int currentSession = ClientMusicPlayer.getCurrentPlaybackSessionAt(x, y, z);
+            if (currentSession > 0 && currentSession != safePlaySessionId) {
+                ClientMusicPlayer.stop("sync_session_changed");
+            }
+        } else if (ClientMusicPlayer.isPlayingAtSource(x, y, z, sourceId)) {
+            ClientMusicPlayer.syncServerTickAtSource(x, y, z, sourceId, safeStartTick);
+            if (playerTile != null && playerTile.lyricRecord != null) {
+                playerTile.lyricRecord.updateCurrentLine(safeStartTick);
+            }
             return;
         }
 
         if (ClientMusicPlayer.isPendingAtSource(x, y, z, sourceId)) {
             return;
         }
-        if (ClientMusicPlayer.isPlayingAtSource(x, y, z, sourceId)) {
-            return;
-        }
         if (ClientMusicPlayer.isPlayingAt(x, y, z)) {
-            ClientMusicPlayer.stop();
+            ClientMusicPlayer.stop("sync_restart_playing_at_pos");
             if (GeneralConfig.ENABLE_DEBUG_MODE) {
                 NetMusic.LOGGER.info("[NetMusic Debug][Play] restart playback at ({},{},{}) startTick={} source={}",
                         x, y, z, safeStartTick, sourceId);

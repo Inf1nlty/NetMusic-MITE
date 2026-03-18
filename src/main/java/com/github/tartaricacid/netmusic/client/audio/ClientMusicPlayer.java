@@ -4,7 +4,6 @@ import com.github.tartaricacid.netmusic.NetMusic;
 import com.github.tartaricacid.netmusic.api.NetWorker;
 import com.github.tartaricacid.netmusic.api.lyric.LyricRecord;
 import com.github.tartaricacid.netmusic.config.GeneralConfig;
-import com.github.tartaricacid.netmusic.tileentity.TileEntityMusicPlayer;
 import net.minecraft.Minecraft;
 import net.minecraft.TileEntity;
 
@@ -17,9 +16,7 @@ import java.io.FileInputStream;
 import java.io.InputStream;
 import java.net.URL;
 import java.net.URLConnection;
-import java.util.LinkedHashMap;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Random;
 
 public final class ClientMusicPlayer {
@@ -32,24 +29,16 @@ public final class ClientMusicPlayer {
     private static volatile float dynamicVolume = 1.0F;
     private static volatile boolean gamePaused;
     private static volatile boolean streamStarted;
-    private static int missingTileTicks;
-    private static int tileNotPlayTicks;
     private static int currentTick;
     private static int currentPlaybackSessionId;
     private static String currentSourceId = "";
+    private static String stopRequestReason = "";
     private static String pendingSourceId = "";
     private static int pendingX;
     private static int pendingY;
     private static int pendingZ;
     private static long pendingUntilMs;
     private static final Random RANDOM = new Random();
-    private static final int SESSION_SOURCE_CACHE_MAX = 512;
-    private static final Map<String, String> STARTED_SESSION_SOURCE = new LinkedHashMap<String, String>(SESSION_SOURCE_CACHE_MAX + 1, 0.75F, true) {
-        @Override
-        protected boolean removeEldestEntry(Map.Entry<String, String> eldest) {
-            return this.size() > SESSION_SOURCE_CACHE_MAX;
-        }
-    };
 
     private ClientMusicPlayer() {}
 
@@ -66,16 +55,16 @@ public final class ClientMusicPlayer {
             return;
         }
         synchronized (LOCK) {
-            stopInternal();
+            stopInternal("replace_play");
             currentSound = sound;
             currentTick = Math.max(0, sound.getStartTick());
             streamStarted = false;
             dynamicVolume = (float) GeneralConfig.MUSIC_PLAYER_VOLUME;
             gamePaused = false;
-            missingTileTicks = 0;
             currentPlaybackSessionId = Math.max(0, playbackSessionId);
             currentSourceId = normalizeSourceId(sourceId, sound);
             stopRequested = false;
+            stopRequestReason = "";
             int session = ++playSession;
             clearPendingLocked();
             if (GeneralConfig.ENABLE_DEBUG_MODE) {
@@ -90,8 +79,12 @@ public final class ClientMusicPlayer {
     }
 
     public static void stop() {
+        stop("manual");
+    }
+
+    public static void stop(String reason) {
         synchronized (LOCK) {
-            stopInternal();
+            stopInternal(reason);
         }
     }
 
@@ -139,31 +132,15 @@ public final class ClientMusicPlayer {
         }
     }
 
-    public static boolean hasStartedSessionSource(int x, int y, int z, int playbackSessionId, String sourceId) {
-        int safeSession = Math.max(0, playbackSessionId);
-        if (safeSession == 0) {
-            return false;
-        }
-        String normalized = normalizeSourceId(sourceId, null);
-        String key = blockKey(x, y, z);
+    public static int getCurrentPlaybackSessionAt(int x, int y, int z) {
         synchronized (LOCK) {
-            String value = STARTED_SESSION_SOURCE.get(key);
-            if (value == null) {
-                return false;
+            if (currentSound == null) {
+                return 0;
             }
-            return value.equals(safeSession + "|" + normalized);
-        }
-    }
-
-    public static void markStartedSessionSource(int x, int y, int z, int playbackSessionId, String sourceId) {
-        int safeSession = Math.max(0, playbackSessionId);
-        if (safeSession == 0) {
-            return;
-        }
-        String normalized = normalizeSourceId(sourceId, null);
-        String key = blockKey(x, y, z);
-        synchronized (LOCK) {
-            STARTED_SESSION_SOURCE.put(key, safeSession + "|" + normalized);
+            if (currentSound.getX() != x || currentSound.getY() != y || currentSound.getZ() != z) {
+                return 0;
+            }
+            return currentPlaybackSessionId;
         }
     }
 
@@ -245,27 +222,26 @@ public final class ClientMusicPlayer {
         }
     }
 
-    private static void stopInternal() {
+    private static void stopInternal(String reason) {
         stopRequested = true;
+        stopRequestReason = reason == null ? "unknown" : reason;
         if (playThread != null) {
             playThread.interrupt();
             playThread = null;
         }
         currentSound = null;
         currentTick = 0;
-            streamStarted = false;
-            missingTileTicks = 0;
-            tileNotPlayTicks = 0;
-            dynamicVolume = 0.0F;
-            gamePaused = false;
-            currentPlaybackSessionId = 0;
+        streamStarted = false;
+        dynamicVolume = 0.0F;
+        gamePaused = false;
+        currentPlaybackSessionId = 0;
         currentSourceId = "";
         clearPendingLocked();
     }
 
     /**
      * Runs on the client thread once per tick (hooked via {@link com.github.tartaricacid.netmusic.mixin.MinecraftMixin}).
-     * Keeps lyric progress, stop conditions, and client-side effects in sync with the original 1.20.1 behavior.
+     * Server-authoritative mode: client never advances playback progress locally.
      */
     public static void clientTick() {
         Minecraft mc = Minecraft.getMinecraft();
@@ -274,7 +250,6 @@ public final class ClientMusicPlayer {
             return;
         }
         if (mc.theWorld == null || mc.thePlayer == null) {
-            stopWithReason("world_or_player_null");
             return;
         }
 
@@ -304,9 +279,6 @@ public final class ClientMusicPlayer {
 
         int syncedTick;
         synchronized (LOCK) {
-            if (streamStarted) {
-                currentTick++;
-            }
             syncedTick = currentTick;
         }
 
@@ -322,49 +294,13 @@ public final class ClientMusicPlayer {
         }
 
         LyricRecord lyricRecord = sound.getLyricRecord();
-
-        // Stop when the tile is no longer playing or missing. Prefer server TE time as lyric tick source.
-        TileEntity te = mc.theWorld.getBlockTileEntity(sound.getX(), sound.getY(), sound.getZ());
-        if (te instanceof TileEntityMusicPlayer musicPlayer) {
-            missingTileTicks = 0;
-            if (!musicPlayer.isPlay()) {
-                tileNotPlayTicks++;
-                if (tileNotPlayTicks > 40) {
-                    stopAndClearTile(mc, sound, "tile_not_playing");
-                    return;
-                }
-            } else {
-                tileNotPlayTicks = 0;
-                syncedTick = TileEntityMusicPlayer.computeStartTick(sound.getTimeSecond(), musicPlayer.getCurrentTime());
-                synchronized (LOCK) {
-                    currentTick = syncedTick;
-                }
-                if (lyricRecord != null) {
-                    lyricRecord.updateCurrentLine(syncedTick);
-                }
-                musicPlayer.lyricRecord = lyricRecord;
-            }
-        } else {
-            // In multiplayer join/teleport transitions, the sync packet can arrive before the chunk TE is client-ready.
-            // Keep audio alive for a short grace window and wait for explicit server stop updates.
-            missingTileTicks++;
-            tileNotPlayTicks = 0;
-            if (missingTileTicks > 100) {
-                stopWithReason("tile_missing_timeout");
-                return;
-            }
-            if (lyricRecord != null) {
-                lyricRecord.updateCurrentLine(syncedTick);
-            }
+        if (lyricRecord != null) {
+            lyricRecord.updateCurrentLine(syncedTick);
         }
-    }
-
-    private static void stopAndClearTile(Minecraft mc, NetMusicSound sound, String reason) {
         TileEntity te = mc.theWorld.getBlockTileEntity(sound.getX(), sound.getY(), sound.getZ());
-        if (te instanceof TileEntityMusicPlayer musicPlayer) {
-            musicPlayer.lyricRecord = null;
+        if (te instanceof com.github.tartaricacid.netmusic.tileentity.TileEntityMusicPlayer musicPlayer) {
+            musicPlayer.lyricRecord = lyricRecord;
         }
-        stopWithReason(reason);
     }
 
     private static void stopWithReason(String reason) {
@@ -378,7 +314,7 @@ public final class ClientMusicPlayer {
         if (GeneralConfig.ENABLE_DEBUG_MODE) {
             NetMusic.LOGGER.info("[NetMusic Debug][Player] stop reason={}", reason);
         }
-        stop();
+        stop(reason);
     }
 
     private static void stream(NetMusicSound sound, int session) {
@@ -456,9 +392,10 @@ public final class ClientMusicPlayer {
                         } else if (System.currentTimeMillis() >= timeoutAt) {
                             stopReason = "timeout";
                         }
+                        String stopRequestDetail = stopRequestReason;
                         if (GeneralConfig.ENABLE_DEBUG_MODE) {
-                            NetMusic.LOGGER.info("[NetMusic Debug][Player] stream_end reason={} pos=({}, {}, {}) session={} playbackSession={} source={} tick={} timeSecond={}",
-                                    stopReason, sound.getX(), sound.getY(), sound.getZ(), session, currentPlaybackSessionId, currentSourceId, currentTick, sound.getTimeSecond());
+                            NetMusic.LOGGER.info("[NetMusic Debug][Player] stream_end reason={} stop_request={} pos=({}, {}, {}) session={} playbackSession={} source={} tick={} timeSecond={}",
+                                    stopReason, stopRequestDetail, sound.getX(), sound.getY(), sound.getZ(), session, currentPlaybackSessionId, currentSourceId, currentTick, sound.getTimeSecond());
                         }
                         line.drain();
                     }
@@ -682,10 +619,6 @@ public final class ClientMusicPlayer {
             return "";
         }
         return value.trim().toLowerCase(Locale.ROOT);
-    }
-
-    private static String blockKey(int x, int y, int z) {
-        return x + "," + y + "," + z;
     }
 
     private static void clearPendingLocked() {

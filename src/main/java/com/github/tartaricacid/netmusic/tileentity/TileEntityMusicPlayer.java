@@ -23,6 +23,7 @@ public class TileEntityMusicPlayer extends TileEntity {
     private static final String PLAY_SESSION_TAG = "PlaySessionId";
     private static final String ITEM_TAG = "MusicCd";
     private static final String ITEM_INFO_TAG = "MusicCdInfo";
+    private static final String ACTIVE_INFO_TAG = "ActiveSongInfo";
     private static final String ITEM_COUNT_TAG = "MusicCdCount";
     private static final String ITEM_SUBTYPE_TAG = "MusicCdSubtype";
 
@@ -49,6 +50,9 @@ public class TileEntityMusicPlayer extends TileEntity {
         this.currentTime = nbt.getInteger(CURRENT_TIME_TAG);
         this.hasSignal = nbt.getBoolean(SIGNAL_TAG);
         this.playSessionId = Math.max(0, nbt.getInteger(PLAY_SESSION_TAG));
+        if (this.isPlay && this.playSessionId <= 0) {
+            this.playSessionId = 1;
+        }
         NBTTagCompound infoTag = nbt.hasKey(ITEM_INFO_TAG) ? nbt.getCompoundTag(ITEM_INFO_TAG) : null;
         int savedCount = Math.max(1, nbt.getInteger(ITEM_COUNT_TAG));
         int savedSubtype = nbt.getInteger(ITEM_SUBTYPE_TAG);
@@ -61,7 +65,11 @@ public class TileEntityMusicPlayer extends TileEntity {
         } else {
             this.items[0] = null;
         }
-        this.activeSongInfo = this.isPlay ? resolvePlaybackInfo(this.items[0]) : null;
+        ItemMusicCD.SongInfo activeFromNbt = null;
+        if (nbt.hasKey(ACTIVE_INFO_TAG)) {
+            activeFromNbt = SongInfoHelper.sanitize(ItemMusicCD.SongInfo.deserializeNBT(nbt.getCompoundTag(ACTIVE_INFO_TAG)));
+        }
+        this.activeSongInfo = this.isPlay ? (activeFromNbt != null ? activeFromNbt : resolvePlaybackInfo(this.items[0])) : null;
     }
 
     @Override
@@ -83,6 +91,12 @@ public class TileEntityMusicPlayer extends TileEntity {
                 nbt.setInteger(ITEM_COUNT_TAG, Math.max(1, stack.stackSize));
                 nbt.setInteger(ITEM_SUBTYPE_TAG, stack.getItemSubtype());
             }
+        }
+        ItemMusicCD.SongInfo active = SongInfoHelper.sanitize(this.activeSongInfo);
+        if (active != null) {
+            NBTTagCompound activeTag = new NBTTagCompound();
+            ItemMusicCD.SongInfo.serializeNBT(active, activeTag);
+            nbt.setCompoundTag(ACTIVE_INFO_TAG, activeTag);
         }
     }
 
@@ -140,9 +154,6 @@ public class TileEntityMusicPlayer extends TileEntity {
         this.isPlay = true;
         this.playSessionId = nextPlaySessionId(this.playSessionId);
         if (this.worldObj != null && !this.worldObj.isRemote) {
-            NetworkHandler.sendToNearBy(this.worldObj, this.xCoord, this.yCoord, this.zCoord,
-                    new MusicToClientMessage(this.xCoord, this.yCoord, this.zCoord,
-                            sanitized.songUrl, sanitized.songTime, sanitized.songName, 0, this.playSessionId));
             this.syncStateToClients();
         }
     }
@@ -250,9 +261,21 @@ public class TileEntityMusicPlayer extends TileEntity {
         String songUrl = info == null || info.songUrl == null ? "" : info.songUrl;
         int songTime = info == null ? 0 : Math.max(0, info.songTime);
         String songName = info == null || info.songName == null ? "" : info.songName;
+
+        if (this.isPlay && this.playSessionId <= 0) {
+            this.playSessionId = 1;
+        }
+
         NetworkHandler.sendToNearBy(this.worldObj, this.xCoord, this.yCoord, this.zCoord,
                 new MusicPlayerStateMessage(this.xCoord, this.yCoord, this.zCoord,
                         this.isPlay, this.currentTime, this.hasSignal, this.playSessionId, stack, songUrl, songTime, songName));
+
+        if (this.isPlay && songTime > 0 && !songUrl.isEmpty()) {
+            int startTick = computeStartTick(songTime, this.currentTime);
+            NetworkHandler.sendToNearBy(this.worldObj, this.xCoord, this.yCoord, this.zCoord,
+                    new MusicToClientMessage(this.xCoord, this.yCoord, this.zCoord,
+                            songUrl, songTime, songName, startTick, this.playSessionId));
+        }
     }
 
     public static int computeStartTick(int songTimeSecond, int currentTime) {

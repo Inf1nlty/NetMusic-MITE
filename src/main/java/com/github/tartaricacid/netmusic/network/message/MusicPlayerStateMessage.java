@@ -10,16 +10,8 @@ import net.minecraft.ResourceLocation;
 import net.minecraft.TileEntity;
 import org.apache.commons.lang3.StringUtils;
 
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
-
 public class MusicPlayerStateMessage implements Message {
     public static final ResourceLocation ID = new ResourceLocation(NetMusic.MOD_ID, "music_player_state");
-    private static final long RECOVERY_RETRY_INTERVAL_MS = 2500L;
-    private static final long RECOVERY_CACHE_EXPIRE_MS = 30000L;
-    private static final int RECOVERY_CACHE_MAX = 512;
-    private static final Map<String, Long> RECOVERY_ATTEMPTS = new HashMap<String, Long>();
 
     private final int x;
     private final int y;
@@ -93,26 +85,8 @@ public class MusicPlayerStateMessage implements Message {
             }
             return;
         }
-
-        if (this.playSessionId > 0 && ClientMusicPlayer.isPlayingAtSession(this.x, this.y, this.z, this.playSessionId)) {
-            return;
-        }
-
-        String sourceId = MusicToClientMessage.buildPlaybackSourceId(this.songUrl, this.songTime, this.songName);
-        if (ClientMusicPlayer.isPlayingAtSource(this.x, this.y, this.z, sourceId)
-                || ClientMusicPlayer.isPendingAtSource(this.x, this.y, this.z, sourceId)) {
-            return;
-        }
-
-        String recoveryKey = this.x + "," + this.y + "," + this.z + "|" + this.playSessionId + "|" + sourceId;
-        long now = System.currentTimeMillis();
-        if (!shouldAttemptRecovery(recoveryKey, now)) {
-            return;
-        }
-
-        int startTick = TileEntityMusicPlayer.computeStartTick(this.songTime, this.currentTime);
-        MusicToClientMessage.applyClientPlayback(entityPlayer, this.x, this.y, this.z,
-                this.songUrl, this.songTime, this.songName, startTick, this.playSessionId, false);
+        // Playback start/recovery is server-driven through MusicToClientMessage.
+        // State packets keep tile state synced only, to avoid client-side replay loops.
     }
 
     @Override
@@ -120,41 +94,7 @@ public class MusicPlayerStateMessage implements Message {
         return ID;
     }
 
-    private static boolean shouldAttemptRecovery(String key, long now) {
-        Long last = RECOVERY_ATTEMPTS.get(key);
-        if (last != null && now - last.longValue() < RECOVERY_RETRY_INTERVAL_MS) {
-            return false;
-        }
-        RECOVERY_ATTEMPTS.put(key, now);
-        cleanupRecoveryCache(now);
-        return true;
-    }
-
-    private static void cleanupRecoveryCache(long now) {
-        if (RECOVERY_ATTEMPTS.isEmpty()) {
-            return;
-        }
-        Iterator<Map.Entry<String, Long>> iterator = RECOVERY_ATTEMPTS.entrySet().iterator();
-        while (iterator.hasNext()) {
-            Map.Entry<String, Long> entry = iterator.next();
-            if (now - entry.getValue().longValue() > RECOVERY_CACHE_EXPIRE_MS) {
-                iterator.remove();
-            }
-        }
-        if (RECOVERY_ATTEMPTS.size() <= RECOVERY_CACHE_MAX) {
-            return;
-        }
-        Iterator<String> keyIterator = RECOVERY_ATTEMPTS.keySet().iterator();
-        while (RECOVERY_ATTEMPTS.size() > RECOVERY_CACHE_MAX && keyIterator.hasNext()) {
-            keyIterator.next();
-            keyIterator.remove();
-        }
-    }
-
     private static String readOptionalString(PacketByteBuf buf) {
-        if (!hasReadableBytes(buf, 4)) {
-            return "";
-        }
         try {
             return buf.readString();
         } catch (Exception ignored) {
@@ -163,21 +103,10 @@ public class MusicPlayerStateMessage implements Message {
     }
 
     private static int readOptionalInt(PacketByteBuf buf) {
-        if (!hasReadableBytes(buf, 4)) {
-            return 0;
-        }
         try {
             return buf.readInt();
         } catch (Exception ignored) {
             return 0;
-        }
-    }
-
-    private static boolean hasReadableBytes(PacketByteBuf buf, int bytes) {
-        try {
-            return buf.getInputStream() != null && buf.getInputStream().available() >= bytes;
-        } catch (Exception ignored) {
-            return false;
         }
     }
 }

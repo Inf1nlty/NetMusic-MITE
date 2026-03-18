@@ -119,6 +119,12 @@ public class MusicToClientMessage implements Message {
         int safePlaySessionId = Math.max(0, playSessionId);
         String safeUrl = url == null ? "" : url;
         String safeSongName = songName == null ? "" : songName;
+        String sourceId = buildPlaybackSourceId(safeUrl, safeTimeSecond, safeSongName);
+
+        if (GeneralConfig.ENABLE_DEBUG_MODE) {
+            NetMusic.LOGGER.info("[NetMusic Debug][SyncPlay] pos=({}, {}, {}) session={} startTick={} source={}",
+                    x, y, z, safePlaySessionId, safeStartTick, sourceId);
+        }
 
         if (updateTile && playerTile != null) {
             if (StringUtils.isBlank(safeUrl)) {
@@ -144,7 +150,6 @@ public class MusicToClientMessage implements Message {
             return;
         }
 
-        String sourceId = buildPlaybackSourceId(safeUrl, safeTimeSecond, safeSongName);
         if (ClientMusicPlayer.isPendingAtSource(x, y, z, sourceId)) {
             return;
         }
@@ -278,9 +283,7 @@ public class MusicToClientMessage implements Message {
 
     private static int readOptionalStartTick(PacketByteBuf buf) {
         try {
-            if (buf.getInputStream() != null && buf.getInputStream().available() >= 4) {
-                return Math.max(0, buf.readInt());
-            }
+            return Math.max(0, buf.readInt());
         } catch (Exception ignored) {
         }
         return 0;
@@ -288,9 +291,7 @@ public class MusicToClientMessage implements Message {
 
     private static int readOptionalInt(PacketByteBuf buf) {
         try {
-            if (buf.getInputStream() != null && buf.getInputStream().available() >= 4) {
-                return Math.max(0, buf.readInt());
-            }
+            return Math.max(0, buf.readInt());
         } catch (Exception ignored) {
         }
         return 0;

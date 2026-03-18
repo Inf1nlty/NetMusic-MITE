@@ -23,12 +23,18 @@ import com.github.tartaricacid.netmusic.util.SongInfoHelper;
 import java.util.List;
 
 public class ItemMusicCD extends Item {
+
     public static final String SONG_INFO_TAG = "NetMusicSongInfo";
 
     public ItemMusicCD() {
         super(IdUtil.getNextItemID(), "music_cd");
         this.setMaterial(Material.paper);
         this.setCreativeTab(NetMusicCreativeTab.TAB);
+    }
+
+    @Override
+    public boolean isHarmedByAcid() {
+        return false;
     }
 
     public static SongInfo getSongInfo(ItemStack stack) {
@@ -211,4 +217,3 @@ public class ItemMusicCD extends Item {
         }
     }
 }
-

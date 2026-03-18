@@ -18,11 +18,4 @@ public abstract class MinecraftMixin {
         ClientMusicPlayer.clientTick();
         ClientVipCookieManager.clientTick();
     }
-
-    @Inject(method = "displayGuiScreen", at = @At("HEAD"))
-    private void netmusic$stopOnDisconnectScreen(GuiScreen screen, CallbackInfo ci) {
-        if (screen instanceof GuiMainMenu || screen instanceof GuiDisconnected) {
-            ClientMusicPlayer.stop("disconnect_screen");
-        }
-    }
 }

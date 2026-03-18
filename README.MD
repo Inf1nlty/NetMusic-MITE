@@ -2,22 +2,30 @@
 
 This repository is used to port the NetMusic mod to MITE 1.6.4 + FishModLoader 3.4.2.
 
-## Current Status
+## License 许可证
 
-- Source package: `com.github.tartaricacid.netmusic` (81 Java files)
-- Resources and metadata are in place (`fml.mod.json`, `assets/netmusic`, `data/netmusic`)
-- Build is currently blocked by unported modern Minecraft API usage (`net.minecraft.world.*`, `net.minecraft.core.*`, etc.)
+This project uses dual licensing
 
-## Quick Verify
+本项目采用双重许可证
 
-```powershell
-.\gradlew.bat build --no-daemon
-```
+### Source Code 源代码
 
-Expected right now: compile errors in unported classes.
+The source code is licensed under the **BSD 3-Clause License**.
 
-## Migration Notes
+源代码采用 **BSD 3-Clause License（BSD 3条款许可证）**。
 
-- This project is no longer the AnimalRefresh example.
-- Porting work should focus on replacing modern 1.20-style APIs with MITE 1.6.4/FML-compatible APIs module by module.
-- MITE 1.6.4 localization uses `assets/netmusic/lang/*.lang` (`en_US.lang`, `zh_CN.lang`), not modern JSON language files.
+See [LICENSE](LICENSE) file for details.
+
+详见 [LICENSE](LICENSE) 文件。
+
+### Assets and Resources 资源文件
+
+All assets and resources (textures, models, sounds, etc.) are licensed under the **Creative Commons
+Attribution-NonCommercial-ShareAlike 4.0 International License (CC BY-NC-SA 4.0)**.
+
+所有资源文件（纹理、模型、音效等）采用 **Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License (CC
+BY-NC-SA 4.0)**（知识共享 署名-非商业性使用-相同方式共享 4.0 国际许可协议）。
+
+See [LICENSE-ASSETS](LICENSE-ASSETS) file for details.
+
+详见 [LICENSE-ASSETS](LICENSE-ASSETS) 文件。
